@@ -4,6 +4,8 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 3.1.2 - 2026-10-16
+
 ### Fixed
 
 - **`task merge` / `task release` merged before CI started (GitHub).** The gate judged only `statusCheckRollup`, which also holds checks from other events on the head commit (e.g. a finished `push` workflow). Right after a PR was opened or pushed, its own `pull_request` run — or that run's jobs — did not exist yet, so earlier green checks counted as "all green" (observed: a release PR merged 5 s after opening, before its CI job was created; a required check name satisfied by the same-named job of a `push` workflow). The gate now also reads the GitHub Actions API for the head SHA: every workflow whose `on:` triggers `pull_request` for this PR (base-branch, path and type filters evaluated as GitHub does; disabled workflows skipped) must have a `pull_request` run, and every Actions run for the SHA must be completed with `success` / `neutral` / `skipped`. Missing or running → wait up to `waitTimeoutSeconds`, then refuse with the workflow named; `startup_failure`, `action_required` and other conclusions → refuse immediately; unreadable Actions API → wait, then refuse (TASK-024).

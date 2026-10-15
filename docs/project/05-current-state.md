@@ -4,14 +4,14 @@
 
 ## Stage
 
-- **Package:** `@goodtek/vibeops` **3.1.1** (ship stages deletions and renames).
+- **Package:** `@goodtek/vibeops` **3.1.2** (merge gate waits for the PR's own CI; npm publish pending).
 - **CLI lifecycle:** `init` · `task add` · `task del` · **`task ship` (state-aware)** · `task merge` · `task sync` · `pull` · `task release` · **`status` (Now/Next)** · `llm`.
 - **Breaking (2.5.0):** `task reship` removed — use `task ship` / `--new-cycle`.
 - **2.5.1:** `task add` preflight + sync diagnosis + incomplete resume.
 - **2.5.2:** `.vibeops.json` / governance dirt soft-pass on integration sync.
 - **3.0.0 (breaking):** merge gate — CheckRun/StatusContext classification fix, fail-closed (incl. no checks unless `merge.allowNoChecks`), strict `merge` config, SHA-pinned merges; requires gh ≥ 2.13.0 (TASK-020).
 - **3.1.1:** `task ship` commits staged / unstaged deletions and renames (`porcelain=v1 -z`, `git add -A` only for unstaged paths) (TASK-022).
-- **Unreleased:** merge gate waits for the PR's own GitHub Actions runs (expected `pull_request` workflows + all runs for the head SHA), head re-read before merge (TASK-024); CI on PRs + `main` (lint, typecheck, build, tests, smoke, gitleaks), npm Trusted Publishing workflow, OSS hygiene (TASK-023).
+- **3.1.2:** merge gate waits for the PR's own GitHub Actions runs (expected `pull_request` workflows + all runs for the head SHA), head re-read before merge (TASK-024); CI on PRs + `main` (lint, typecheck, build, tests, smoke, gitleaks), npm Trusted Publishing workflow, OSS hygiene (TASK-023).
 - **3.1.0:** worktree-safe `task add` / `task sync` / `task del` / new-cycle (no integration checkout), repository lock, stash by SHA, global TASK id allocation + ship-time remote id guard (TASK-021).
 
 ## Implementation (this repo)
@@ -28,7 +28,7 @@
 
 ## Next
 
-- Consumers: `npm i -g @goodtek/vibeops@3.1.0` (or `volta install @goodtek/vibeops@3.1.0`) once published. Repos without CI: `"merge": {"allowNoChecks": true}`.
+- Consumers: `npm i -g @goodtek/vibeops@3.1.2` (or `volta install @goodtek/vibeops@3.1.2`) once published. Repos without CI: `"merge": {"allowNoChecks": true}`.
 - Maintainers: register `publish.yml` as npm trusted publisher (09-deployment.md), then release by tag `vX.Y.Z`; until then `pnpm publish:npm`.
 
 ## Progress rules
