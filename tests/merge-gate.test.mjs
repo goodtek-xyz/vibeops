@@ -18,7 +18,13 @@ import {
   parseMergeConfig,
 } from "../dist/lib/merge-config.js";
 import { pipelineGateState, pipelineStatusFromHost } from "../dist/lib/merge-request-readiness.js";
-import { MergeGateError, mergeMergeRequest } from "../dist/lib/pr-create.js";
+import { errorBackoffMs, MergeGateError, mergeMergeRequest } from "../dist/lib/pr-create.js";
+import {
+  evaluateActionsRuns,
+  ignoredByFilter,
+  includedByFilter,
+  workflowExpectedForPullRequest,
+} from "../dist/lib/github-actions-gate.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -26,6 +32,10 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 // Fake `gh` / `glab` on PATH: `pr view` / `mr view` return the next queued
 // response (last one repeats); `pr merge` / `mr merge` append argv to a log.
 // If `<state>/merge-fail` holds N > 0, the merge fails with HTTP 405 and N--.
+// `gh api <path>`: first route in `<state>/api.json` whose regex matches the
+// path answers with its next queued response (last repeats); `{ "status": 404 }`
+// → HTTP 404, `{ "raw": "…" }` → raw text, anything else → JSON. Defaults: no
+// `.github/workflows`, no workflow runs. Every call is appended to `events.log`.
 // ---------------------------------------------------------------------------
 
 const binDir = mkdtempSync(join(tmpdir(), "vibeops-fake-host-"));
@@ -34,15 +44,43 @@ const fs = require("node:fs");
 const dir = process.env.FAKE_HOST_DIR;
 const args = process.argv.slice(2);
 if (args[0] === "--version") { console.log("fake 1.0"); process.exit(0); }
+const event = (line) => fs.appendFileSync(dir + "/events.log", line + "\\n");
+if (args[0] === "api") {
+  const path = args[args.length - 1];
+  const routesPath = dir + "/api.json";
+  const routes = fs.existsSync(routesPath) ? JSON.parse(fs.readFileSync(routesPath, "utf8")) : [];
+  const defaults = [
+    ["/actions/runs[?]", [{ total_count: 0, workflow_runs: [] }]],
+    ["/actions/workflows[?]", [{ total_count: 0, workflows: [] }]],
+  ];
+  let answer = { status: 404 };
+  for (const [i, [re, responses]] of [...routes, ...defaults].entries()) {
+    if (!new RegExp(re).test(path)) continue;
+    const cPath = dir + "/api-counter-" + i;
+    const n = fs.existsSync(cPath) ? Number(fs.readFileSync(cPath, "utf8")) : 0;
+    fs.writeFileSync(cPath, String(n + 1));
+    answer = responses[Math.min(n, responses.length - 1)];
+    break;
+  }
+  event("api " + path);
+  if (answer && answer.status === 404) {
+    process.stderr.write("gh: Not Found (HTTP 404)");
+    process.exit(1);
+  }
+  process.stdout.write(answer && typeof answer.raw === "string" ? answer.raw : JSON.stringify(answer));
+  process.exit(0);
+}
 if (args[1] === "view") {
   const views = JSON.parse(fs.readFileSync(dir + "/views.json", "utf8"));
   const counterPath = dir + "/counter";
   const i = fs.existsSync(counterPath) ? Number(fs.readFileSync(counterPath, "utf8")) : 0;
   fs.writeFileSync(counterPath, String(i + 1));
+  event("view " + i);
   process.stdout.write(JSON.stringify(views[Math.min(i, views.length - 1)]));
   process.exit(0);
 }
 if (args[1] === "merge") {
+  event("merge");
   fs.appendFileSync(dir + "/merge.log", JSON.stringify(args) + "\\n");
   const failPath = dir + "/merge-fail";
   const left = fs.existsSync(failPath) ? Number(fs.readFileSync(failPath, "utf8")) : 0;
@@ -220,7 +258,7 @@ test("GitLab pipeline mapping: manual / unknown are red, scheduled is pending", 
 test("parseMergeConfig: absent block → documented defaults", () => {
   assert.deepEqual(parseMergeConfig(undefined), MERGE_GATE_DEFAULTS);
   assert.equal(MERGE_GATE_DEFAULTS.waitTimeoutSeconds, 900);
-  assert.equal(MERGE_GATE_DEFAULTS.pollIntervalSeconds, 5);
+  assert.equal(MERGE_GATE_DEFAULTS.pollIntervalSeconds, 10);
   assert.equal(MERGE_GATE_DEFAULTS.emptyRollupGraceSeconds, 30);
   assert.equal(MERGE_GATE_DEFAULTS.allowNoChecks, false);
 });
@@ -339,7 +377,8 @@ test("merge: pending then success merges after waiting", async () => {
     ghPr([checkRun("build", "COMPLETED", "SUCCESS"), statusContext("ext/ci", "SUCCESS")]),
   ]);
   await merge();
-  assert.equal(viewCount(), 3);
+  // 3 polls + 1 head re-read right before merging.
+  assert.equal(viewCount(), 4);
   assert.equal(mergeCalls().length, 1);
 });
 
@@ -422,7 +461,7 @@ test("merge: mixed — CANCELLED + still running refuses immediately (red beats 
 test("merge: empty rollup waits through the grace window, then merges once checks appear", async () => {
   queueViews([ghPr([]), ghPr([checkRun("build", "COMPLETED", "SUCCESS")])]);
   await merge({ gate: { emptyRollupGraceMs: 5_000 } });
-  assert.equal(viewCount(), 2);
+  assert.equal(viewCount(), 3);
   assert.equal(mergeCalls().length, 1);
 });
 
@@ -455,7 +494,7 @@ test("merge: no checks with allowNoChecks merges and warns exactly once", async 
   } finally {
     console.warn = original;
   }
-  assert.equal(viewCount(), 4);
+  assert.equal(viewCount(), 5);
   assert.equal(mergeCalls().length, 1);
   assert.equal(warnings.filter((w) => w.includes("with NO checks")).length, 1);
 });
@@ -572,7 +611,8 @@ test("gitlab: 405 re-runs the gate and retries with the same flags (still --auto
   failNextMerges(1);
   await mergeGitLab();
   assert.deepEqual(mergeCalls(), [GL_MERGE, GL_MERGE]);
-  assert.equal(viewCount(), 2);
+  // Each gate run: one poll + one head re-read.
+  assert.equal(viewCount(), 4);
 });
 
 test("gitlab: 405 twice propagates the error (no auto-merge fallback)", async () => {
@@ -650,5 +690,243 @@ test("cli: invalid merge config makes task merge / release exit 1 naming the key
     const r = runCli([...cmd, "--dry-run", "--cwd", dir]);
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /unknown key `requiredCheck`/);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GitHub Actions: checks from other events must not stand in for the PR's CI
+// (observed: release PR merged 5 s after opening on the green checks of an
+// earlier `push` workflow, before its own `pull_request` run had any job).
+// ---------------------------------------------------------------------------
+
+function routeApi(routes) {
+  writeFileSync(join(stateDir, "api.json"), JSON.stringify(routes));
+}
+
+function events() {
+  const p = join(stateDir, "events.log");
+  return existsSync(p) ? readFileSync(p, "utf8").trim().split("\n") : [];
+}
+
+const CI_YML = "name: CI\non:\n  pull_request:\n  push:\n    branches: [main]\njobs: {}\n";
+const workflowsDir = (files) => [
+  "/contents/\\.github/workflows[?]ref=",
+  [files.map((f) => ({ type: "file", path: `.github/workflows/${f}` }))],
+];
+const workflowFile = (file, yml) => [`/contents/\\.github/workflows/${file}[?]`, [{ raw: yml }]];
+const run = (id, event, status, conclusion, path = ".github/workflows/ci.yml") => ({
+  id,
+  name: path.endsWith("cd.yml") ? "CD" : "CI",
+  path,
+  event,
+  status,
+  conclusion,
+});
+const runs = (...lists) => ["/actions/runs[?]head_sha=abc123", lists.map((l) => ({
+  total_count: l.length,
+  workflow_runs: l,
+}))];
+// Rollup made only of the finished checks of an earlier push workflow.
+const PUSH_CHECKS = [checkRun("Gate · lint & build", "COMPLETED", "SUCCESS")];
+const PUSH_RUN = run(1, "push", "completed", "success", ".github/workflows/cd.yml");
+
+test("actions: green push checks do not merge before the PR's pull_request run exists and passes", async () => {
+  routeApi([
+    workflowsDir(["ci.yml", "cd.yml"]),
+    workflowFile("ci.yml", CI_YML),
+    workflowFile("cd.yml", "on:\n  push:\n    branches: [develop]\njobs: {}\n"),
+    runs(
+      [PUSH_RUN],
+      [PUSH_RUN, run(2, "pull_request", "queued", null)],
+      [PUSH_RUN, run(2, "pull_request", "in_progress", null)],
+      [PUSH_RUN, run(2, "pull_request", "completed", "success")],
+    ),
+  ]);
+  queueViews([ghPr(PUSH_CHECKS)]);
+  await merge();
+  const ev = events();
+  const runReads = ev.filter((e) => e.includes("/actions/runs?"));
+  assert.equal(runReads.length, 4, ev.join("\n"));
+  // Merge only after the 4th runs read (pull_request run completed/success).
+  assert.ok(ev.indexOf("merge") > ev.lastIndexOf(runReads[3]), ev.join("\n"));
+  assert.deepEqual(mergeCalls(), [
+    ["pr", "merge", "7", "--squash", "--match-head-commit", "abc123"],
+  ]);
+});
+
+test("actions: required check satisfied only by a push-event check still waits for the PR run", async () => {
+  routeApi([
+    workflowsDir(["ci.yml"]),
+    workflowFile("ci.yml", CI_YML),
+    runs([PUSH_RUN], [PUSH_RUN, run(2, "pull_request", "completed", "success")]),
+  ]);
+  queueViews([ghPr(PUSH_CHECKS)]);
+  await merge({ requiredChecks: ["Gate · lint & build"] });
+  const ev = events();
+  assert.equal(ev.filter((e) => e.includes("/actions/runs?")).length, 2, ev.join("\n"));
+  assert.equal(mergeCalls().length, 1);
+});
+
+test("actions: expected pull_request run that never starts refuses after the timeout", async () => {
+  routeApi([workflowsDir(["ci.yml"]), workflowFile("ci.yml", CI_YML), runs([PUSH_RUN])]);
+  queueViews([ghPr(PUSH_CHECKS)]);
+  await assert.rejects(merge({ gate: { timeoutMs: 80 } }), (e) => {
+    assert.ok(e instanceof MergeGateError);
+    assert.match(
+      e.message,
+      /workflow \.github\/workflows\/ci\.yml \(pull_request\) has not started for abc123 yet \(gave up after/,
+    );
+    return true;
+  });
+  assert.deepEqual(mergeCalls(), []);
+});
+
+test("actions: no checks yet but a PR workflow is expected → waits (no grace refusal), then merges", async () => {
+  routeApi([
+    workflowsDir(["ci.yml"]),
+    workflowFile("ci.yml", CI_YML),
+    runs([], [run(2, "pull_request", "completed", "success")]),
+  ]);
+  queueViews([ghPr([]), ghPr([checkRun("build", "COMPLETED", "SUCCESS")])]);
+  await merge({ gate: { emptyRollupGraceMs: 0 } });
+  assert.equal(mergeCalls().length, 1);
+});
+
+test("actions: failed run without any check run (startup_failure) refuses immediately", async () => {
+  routeApi([
+    workflowsDir(["ci.yml"]),
+    workflowFile("ci.yml", CI_YML),
+    runs([PUSH_RUN, run(2, "pull_request", "completed", "startup_failure")]),
+  ]);
+  queueViews([ghPr(PUSH_CHECKS)]);
+  await assert.rejects(merge(), /workflow "CI" \(pull_request\) concluded startup_failure/);
+  assert.deepEqual(mergeCalls(), []);
+  assert.equal(viewCount(), 1);
+});
+
+test("actions: fork run awaiting approval refuses with action_required", async () => {
+  routeApi([
+    workflowsDir(["ci.yml"]),
+    workflowFile("ci.yml", CI_YML),
+    runs([run(2, "pull_request", "completed", "action_required")]),
+  ]);
+  queueViews([ghPr([])]);
+  await assert.rejects(merge(), /needs approval \(action_required\)/);
+  assert.deepEqual(mergeCalls(), []);
+});
+
+test("actions: workflows filtered out by branches / paths are not awaited", async () => {
+  routeApi([
+    workflowsDir(["only-develop.yml", "src-only.yml", "labels.yml", "disabled.yml"]),
+    workflowFile("only-develop.yml", "on:\n  pull_request:\n    branches: [develop]\n"),
+    workflowFile("src-only.yml", "on:\n  pull_request:\n    paths: ['src/**', '!src/**/*.md']\n"),
+    workflowFile("labels.yml", "on:\n  pull_request:\n    types: [labeled]\n"),
+    workflowFile("disabled.yml", "on: pull_request\n"),
+    [
+      "/actions/workflows[?]",
+      [{ workflows: [{ path: ".github/workflows/disabled.yml", state: "disabled_manually" }] }],
+    ],
+    ["/pulls/7/files[?]", [[{ filename: "docs/a.md" }, { filename: "src/x/readme.md" }]]],
+  ]);
+  queueViews([ghPr([checkRun("build", "COMPLETED", "SUCCESS")], { baseRefName: "main" })]);
+  await merge();
+  assert.equal(mergeCalls().length, 1);
+});
+
+test("actions: running run from another event on the head commit blocks until it finishes", async () => {
+  routeApi([
+    runs(
+      [run(1, "push", "in_progress", null, ".github/workflows/cd.yml")],
+      [run(1, "push", "completed", "success", ".github/workflows/cd.yml")],
+    ),
+  ]);
+  queueViews([ghPr(PUSH_CHECKS)]);
+  await merge();
+  assert.equal(events().filter((e) => e.includes("/actions/runs?")).length, 2);
+  assert.equal(mergeCalls().length, 1);
+});
+
+test("actions: head moving while checks are read re-checks the new head and pins it", async () => {
+  routeApi([
+    ["/actions/runs[?]head_sha=abc123", [{ workflow_runs: [] }]],
+    ["/actions/runs[?]head_sha=def999", [{ workflow_runs: [] }]],
+  ]);
+  const green = [checkRun("build", "COMPLETED", "SUCCESS")];
+  queueViews([ghPr(green), ghPr(green, { headRefOid: "def999" })]);
+  await merge();
+  assert.deepEqual(mergeCalls(), [
+    ["pr", "merge", "7", "--squash", "--match-head-commit", "def999"],
+  ]);
+  assert.ok(events().some((e) => e.includes("head_sha=def999")));
+});
+
+test("actions: unreadable Actions API keeps waiting, then refuses (never merges blind)", async () => {
+  routeApi([["/actions/runs[?]", [{ not: "a runs payload" }]]]);
+  queueViews([ghPr([checkRun("build", "COMPLETED", "SUCCESS")])]);
+  await assert.rejects(merge({ gate: { timeoutMs: 80 } }), /could not read GitHub Actions runs/);
+  assert.deepEqual(mergeCalls(), []);
+});
+
+// ---------------------------------------------------------------------------
+// Pure helpers
+// ---------------------------------------------------------------------------
+
+test("filter patterns follow GitHub's cheat sheet", () => {
+  assert.equal(includedByFilter(["main"], "main"), true);
+  assert.equal(includedByFilter(["release/*"], "release/1.0"), true);
+  assert.equal(includedByFilter(["release/*"], "release/1/0"), false);
+  assert.equal(includedByFilter(["release/**"], "release/1/0"), true);
+  assert.equal(includedByFilter(["feature/**", "!feature/wip-*"], "feature/wip-x"), false);
+  assert.equal(includedByFilter(["!feature/wip-*", "feature/**"], "feature/wip-x"), true);
+  assert.equal(includedByFilter(["v[12].*"], "v2.x"), true);
+  assert.equal(includedByFilter(["*.jsx?"], "a.js"), true);
+  assert.equal(includedByFilter(["*.jsx?"], "a.jsxx"), false);
+  assert.equal(includedByFilter(["**.md"], "docs/a.md"), true);
+  assert.equal(includedByFilter(["a.b"], "aXb"), false);
+  assert.equal(ignoredByFilter(["docs/**"], "docs/x/y.md"), true);
+});
+
+test("workflowExpectedForPullRequest: trigger forms and filters", async () => {
+  const ctx = (base = "main", files = ["src/a.ts"]) => ({
+    baseBranch: base,
+    changedFiles: async () => files,
+  });
+  const yes = async (yml, c = ctx()) => (await workflowExpectedForPullRequest(yml, c)).expected;
+  assert.equal(await yes("on: pull_request\n"), true);
+  assert.equal(await yes("on: [push, pull_request]\n"), true);
+  assert.equal(await yes("on: push\n"), false);
+  assert.equal(await yes("on:\n  pull_request_target:\n"), false);
+  assert.equal(await yes("on:\n  workflow_call:\n"), false);
+  assert.equal(await yes("on:\n  pull_request:\n    types: [opened, synchronize]\n"), true);
+  assert.equal(await yes("on:\n  pull_request:\n    types: [closed]\n"), false);
+  assert.equal(await yes("on:\n  pull_request:\n    branches: [main]\n"), true);
+  assert.equal(await yes("on:\n  pull_request:\n    branches-ignore: [main]\n"), false);
+  assert.equal(await yes("on:\n  pull_request:\n    paths-ignore: ['docs/**']\n", ctx("main", ["docs/a"])), false);
+  assert.equal(await yes("on:\n  pull_request:\n    paths-ignore: ['docs/**']\n", ctx("main", ["docs/a", "x"])), true);
+  // Unknown base branch → branch filters assumed to match (wait rather than skip).
+  assert.equal(await yes("on:\n  pull_request:\n    branches: [develop]\n", ctx(null)), true);
+  // GitHub turns unparsable workflows into failed runs → still awaited.
+  assert.equal(await yes("on: [pull_request\n"), true);
+});
+
+test("evaluateActionsRuns: latest run per workflow + event decides; unknown fails closed", () => {
+  const r = evaluateActionsRuns(
+    [
+      run(1, "pull_request", "completed", "failure"),
+      run(5, "pull_request", "completed", "success"),
+      run(3, "push", "completed", "skipped", ".github/workflows/cd.yml"),
+      run(4, "push", "completed", "weird", ".github/workflows/x.yml"),
+    ],
+    [".github/workflows/ci.yml", ".github/workflows/lint.yml"],
+  );
+  assert.deepEqual(r.failed, ['workflow "CI" (push) concluded weird']);
+  assert.deepEqual(r.pending, []);
+  assert.deepEqual(r.missing, [".github/workflows/lint.yml"]);
+});
+
+test("errorBackoffMs: exponential with jitter, capped at 60 s", () => {
+  for (let n = 0; n < 12; n++) {
+    const d = errorBackoffMs(10_000, n);
+    assert.ok(d >= 10_000 && d <= Math.min(60_000, 10_000 * 2 ** n), `${n}: ${d}`);
   }
 });

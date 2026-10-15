@@ -127,7 +127,7 @@ export async function taskMergeCommand(
   log.info(`  ${dim("target")}     ${ctx.baseBranch} (${gitCfg.integrationBranch})`);
   log.info(`  ${dim("method")}     ${method}`);
   log.info(
-    `  ${dim("checks")}     all green${
+    `  ${dim("gate")}       waits until every check on the head commit is green${
       requiredChecks.length > 0 ? ` + required: ${requiredChecks.join(", ")}` : ""
     }${mergeCfg.allowNoChecks ? dim(" (allowNoChecks: true)") : ""}`,
   );

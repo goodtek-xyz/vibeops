@@ -17,6 +17,14 @@ import {
   type MergeRequestReadiness,
   type PipelineStatus,
 } from "./merge-request-readiness.js";
+import {
+  evaluateActionsRuns,
+  listExpectedPullRequestWorkflows,
+  listWorkflowRunsForSha,
+  parseGitHubPullUrl,
+  type ActionsGateResult,
+  type ExpectedWorkflow,
+} from "./github-actions-gate.js";
 import { dim, log } from "./logger.js";
 import { MERGE_GATE_DEFAULTS, mergeGateTiming } from "./merge-config.js";
 import type { GitHost } from "../types/config.js";
@@ -127,6 +135,8 @@ export interface MergeRequestDetails {
   readonly checks: readonly ClassifiedCheck[] | null;
   /** Head commit SHA (GitHub `headRefOid`, GitLab `sha`), used to pin the merge. */
   readonly headSha: string | null;
+  /** Target branch (GitHub `baseRefName`, GitLab `target_branch`), when reported. */
+  readonly baseBranch: string | null;
 }
 
 export type { MergeRequestReadiness, PipelineStatus };
@@ -346,6 +356,7 @@ export async function readMergeRequestDetails(
       has_conflicts?: boolean | null;
       head_pipeline?: { status?: string | null } | null;
       sha?: string | null;
+      target_branch?: string | null;
     };
     if (options.strict) {
       const problems = shapeProblems(parsed as Record<string, unknown>, {
@@ -378,6 +389,7 @@ export async function readMergeRequestDetails(
       hasConflicts: parsed.has_conflicts ?? null,
       checks: null,
       headSha: parsed.sha ?? null,
+      baseBranch: parsed.target_branch ?? null,
     };
   }
   const { stdout } = await execFileAsync(
@@ -387,7 +399,7 @@ export async function readMergeRequestDetails(
       "view",
       ref,
       "--json",
-      "state,mergedAt,mergeCommit,mergeable,headRefOid,statusCheckRollup",
+      "state,mergedAt,mergeCommit,mergeable,headRefOid,baseRefName,statusCheckRollup",
     ],
     { cwd, maxBuffer: 4 * 1024 * 1024 },
   );
@@ -397,6 +409,7 @@ export async function readMergeRequestDetails(
     mergeCommit?: { oid?: string | null } | null;
     mergeable?: string | null;
     headRefOid?: string | null;
+    baseRefName?: string | null;
     statusCheckRollup?: RawRollupItem[] | null;
   };
   if (options.strict) {
@@ -430,6 +443,7 @@ export async function readMergeRequestDetails(
     hasConflicts: mergeable === "CONFLICTING" ? true : mergeable === "MERGEABLE" ? false : null,
     checks,
     headSha: parsed.headRefOid ?? null,
+    baseBranch: parsed.baseRefName ?? null,
   };
 }
 
@@ -540,10 +554,73 @@ const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
 
 /**
+ * Upper bound for the back-off after consecutive host read errors. GitHub asks
+ * clients that hit a secondary rate limit to wait at least one minute before
+ * retrying (docs.github.com/rest/using-the-rest-api/rate-limits-for-the-rest-api).
+ */
+const ERROR_BACKOFF_CAP_MS = 60_000;
+
+/** Exponential back-off with full jitter in [base, min(cap, base·2^n)]. */
+export function errorBackoffMs(baseMs: number, consecutiveErrors: number): number {
+  const ceiling = Math.min(ERROR_BACKOFF_CAP_MS, baseMs * 2 ** Math.max(0, consecutiveErrors));
+  return baseMs + Math.random() * Math.max(0, ceiling - baseMs);
+}
+
+interface ActionsEvaluation {
+  readonly result: ActionsGateResult;
+  readonly runCount: number;
+  readonly expectedCount: number;
+}
+
+/**
+ * GitHub Actions view of the head commit (see `github-actions-gate.ts`).
+ * Expected workflows depend only on the head SHA, so they are cached per SHA.
+ */
+async function evaluateGitHubActions(
+  cwd: string,
+  url: string,
+  details: MergeRequestDetails,
+  expectedCache: Map<string, readonly ExpectedWorkflow[]>,
+): Promise<ActionsEvaluation> {
+  const pr = parseGitHubPullUrl(url);
+  if (pr === null) {
+    throw new MergeGateError("PR", [
+      `cannot derive the repository from "${url}" to read its GitHub Actions runs`,
+    ]);
+  }
+  const sha = details.headSha!;
+  let expected = expectedCache.get(sha);
+  if (expected === undefined) {
+    expected = await listExpectedPullRequestWorkflows(cwd, pr, sha, details.baseBranch);
+    expectedCache.set(sha, expected);
+  }
+  const runs = await listWorkflowRunsForSha(cwd, pr, sha);
+  return {
+    result: evaluateActionsRuns(
+      runs,
+      expected.map((w) => w.path),
+    ),
+    runCount: runs.length,
+    expectedCount: expected.length,
+  };
+}
+
+function shortSha(sha: string | null): string {
+  return (sha ?? "?").slice(0, 7);
+}
+
+/**
  * Merge gate: poll the MR/PR until every check is green and the host reports it
  * mergeable. Refuses immediately on any failed check, on host output it cannot
  * trust, and on "no checks at all" (unless allowed); refuses after the timeout
- * when checks stay pending or a required check never appears.
+ * when checks stay pending or a required / expected check never appears.
+ *
+ * GitHub: besides `statusCheckRollup`, the head commit's GitHub Actions runs
+ * must all be finished and green, and every workflow that triggers on this
+ * PR's `pull_request` event must have a run for the head SHA — so checks left
+ * on the commit by other events never stand in for the PR's own CI. Before
+ * returning green, the head SHA is read again; if it moved, the new head is
+ * evaluated from scratch (the merge is also pinned with `--match-head-commit`).
  */
 export async function waitForMergeGate(
   cwd: string,
@@ -561,11 +638,14 @@ export async function waitForMergeGate(
   const label = mergeRequestLabel(host);
   const start = Date.now();
   const deadline = start + timeoutMs;
-  let loggedWait = false;
+  const expectedCache = new Map<string, readonly ExpectedWorkflow[]>();
+  let lastLogged = "";
   let warnedGitLabRequired = false;
+  let consecutiveErrors = 0;
 
   for (;;) {
     let problems: string[] = [];
+    let readError = false;
     let details: MergeRequestDetails | null = null;
     try {
       details = await readMergeRequestDetails(cwd, host, url, { strict: true });
@@ -575,6 +655,7 @@ export async function waitForMergeGate(
       }
       const msg = error instanceof Error ? error.message.split("\n")[0] : String(error);
       problems = [`could not read ${label} details from the host: ${msg}`];
+      readError = true;
     }
     if (details === null) {
       // problems set in catch; keep polling (transient CLI / network error).
@@ -595,12 +676,44 @@ export async function waitForMergeGate(
       if (details.hasConflicts === true) {
         return { ok: false, problems: [`${label} has merge conflicts`] };
       }
+
+      let actions: ActionsEvaluation | null = null;
+      if (!gitlab) {
+        try {
+          actions = await evaluateGitHubActions(cwd, url, details, expectedCache);
+        } catch (error) {
+          if (error instanceof MergeGateError) return { ok: false, problems: error.problems };
+          const msg = error instanceof Error ? error.message.split("\n")[0] : String(error);
+          problems = [`could not read GitHub Actions runs for ${shortSha(details.headSha)}: ${msg}`];
+          readError = true;
+        }
+        if (actions !== null && actions.result.failed.length > 0) {
+          return { ok: false, problems: [...actions.result.failed] };
+        }
+      }
+
+      const actionsPending =
+        actions === null
+          ? []
+          : [
+              ...actions.result.pending,
+              ...actions.result.missing.map(
+                (p) => `workflow ${p} (pull_request) has not started for ${shortSha(details!.headSha)} yet`,
+              ),
+            ];
+      const actionsSilent =
+        actions === null || (actions.runCount === 0 && actions.expectedCount === 0);
+
       // "No checks at all" is judged here only when no required check could
-      // report it instead (GitHub with requiredChecks → "never ran" path).
-      const noChecksRule = ev.noChecks && (gitlab || required.length === 0);
+      // report it instead (GitHub with requiredChecks → "never ran" path) and
+      // no GitHub Actions run exists or is expected for the head commit.
+      const noChecksRule =
+        !readError && ev.noChecks && actionsSilent && (gitlab || required.length === 0);
       const inGrace = waitForPending && noChecksRule && Date.now() - start < graceMs;
-      if (ev.state === "pending") {
-        problems = ev.problems;
+      if (readError) {
+        // problems set above; keep polling with back-off.
+      } else if (ev.state === "pending" || actionsPending.length > 0) {
+        problems = [...ev.problems, ...actionsPending];
       } else if (inGrace) {
         problems = ["no status checks reported yet"];
       } else if (noChecksRule && !allowNoChecks) {
@@ -614,22 +727,47 @@ export async function waitForMergeGate(
       } else {
         const readiness = mergeRequestReadinessFromDetails(details);
         if (readiness !== null && isMergeRequestReadyToMerge(readiness)) {
-          if (noChecksRule) {
-            // Once, after the gate has decided to merge — not on every poll.
-            log.warn(
-              `WARNING: merging ${label} with NO checks (merge.allowNoChecks is true). Nothing verified this change.`,
-            );
+          // Race guard: the head may have moved while the checks were read.
+          let again: MergeRequestDetails | null = null;
+          try {
+            again = await readMergeRequestDetails(cwd, host, url, { strict: true });
+          } catch (error) {
+            if (error instanceof MergeRequestShapeError) {
+              return { ok: false, problems: [error.message] };
+            }
+            readError = true;
+            problems = [`could not re-read the ${label} head before merging`];
           }
-          return { ok: true, alreadyMerged: false, details };
+          if (again !== null && again.state === "merged") {
+            return { ok: true, alreadyMerged: true, details: again };
+          }
+          if (again !== null && again.headSha === details.headSha && again.state === "open") {
+            if (noChecksRule) {
+              // Once, after the gate has decided to merge — not on every poll.
+              log.warn(
+                `WARNING: merging ${label} with NO checks (merge.allowNoChecks is true). Nothing verified this change.`,
+              );
+            }
+            return { ok: true, alreadyMerged: false, details };
+          }
+          if (again !== null) {
+            problems = [
+              `${label} head moved from ${shortSha(details.headSha)} to ${shortSha(
+                again.headSha,
+              )} while checks were read; re-checking the new head`,
+            ];
+          }
+        } else {
+          problems = [
+            `host does not report the ${label} as mergeable yet (${
+              details.detailedMergeStatus || details.mergeStatus || "unknown"
+            })`,
+          ];
         }
-        problems = [
-          `host does not report the ${label} as mergeable yet (${
-            details.detailedMergeStatus || details.mergeStatus || "unknown"
-          })`,
-        ];
       }
     }
 
+    consecutiveErrors = readError ? consecutiveErrors + 1 : 0;
     const now = Date.now();
     if (!waitForPending || now >= deadline) {
       const suffix = waitForPending
@@ -640,11 +778,13 @@ export async function waitForMergeGate(
         problems: problems.map((p, i) => (i === problems.length - 1 ? `${p}${suffix}` : p)),
       };
     }
-    if (!loggedWait) {
-      log.info(dim(`Waiting for ${label} checks: ${problems.join("; ")}…`));
-      loggedWait = true;
+    const summary = problems.join("; ");
+    if (summary !== lastLogged) {
+      log.info(dim(`Waiting for ${label} checks: ${summary}…`));
+      lastLogged = summary;
     }
-    await sleep(Math.min(intervalMs, deadline - now));
+    const delay = readError ? errorBackoffMs(intervalMs, consecutiveErrors) : intervalMs;
+    await sleep(Math.min(delay, deadline - now));
   }
 }
 

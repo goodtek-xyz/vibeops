@@ -4,6 +4,12 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- **`task merge` / `task release` merged before CI started (GitHub).** The gate judged only `statusCheckRollup`, which also holds checks from other events on the head commit (e.g. a finished `push` workflow). Right after a PR was opened or pushed, its own `pull_request` run — or that run's jobs — did not exist yet, so earlier green checks counted as "all green" (observed: a release PR merged 5 s after opening, before its CI job was created; a required check name satisfied by the same-named job of a `push` workflow). The gate now also reads the GitHub Actions API for the head SHA: every workflow whose `on:` triggers `pull_request` for this PR (base-branch, path and type filters evaluated as GitHub does; disabled workflows skipped) must have a `pull_request` run, and every Actions run for the SHA must be completed with `success` / `neutral` / `skipped`. Missing or running → wait up to `waitTimeoutSeconds`, then refuse with the workflow named; `startup_failure`, `action_required` and other conclusions → refuse immediately; unreadable Actions API → wait, then refuse (TASK-024).
+- **Head SHA race:** right before merging, the gate re-reads the PR head; if it moved while checks were read, the new head is evaluated from scratch (the merge stays pinned with `--match-head-commit` / `--sha`) (TASK-024).
+- The `task merge` header no longer prints `checks all green` before anything was checked; it states the rule (`waits until every check on the head commit is green`).
+
 ### Added
 
 - **CI** (`.github/workflows/ci.yml`, pull requests + `main`): lint (ESLint, new `pnpm lint`), typecheck, build, tests and smoke on Node 20 / 22 / 24, GitHub-hosted runners only, read-only token, actions pinned by commit SHA (TASK-023).
@@ -12,6 +18,9 @@ All notable changes to VibeOps are documented here.
 
 ### Changed
 
+- `merge.pollIntervalSeconds` default **5 → 10** (the default of `gh pr checks --watch`). Host read errors back off exponentially with jitter (cap 60 s) within `waitTimeoutSeconds`.
+- "No checks at all" now also requires that no GitHub Actions run exists or is expected for the head commit; `emptyRollupGraceSeconds` only matters for CI outside GitHub Actions.
+- New runtime dependency: `yaml` (ISC) to read workflow triggers.
 - `package.json` `repository` / `homepage` / `bugs` point at `github.com/goodtek-xyz/vibeops` (required to match exactly for Trusted Publishing provenance).
 - Docs, scripts and examples use placeholders instead of maintainer-internal hosts and paths; `.infisical.json` is no longer tracked (gitignored).
 
