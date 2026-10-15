@@ -2,6 +2,7 @@ import { dim, log } from "./logger.js";
 import {
   gitAddPaths,
   gitPush,
+  listUnstagedRelPaths,
   listWorkingTreeRelPaths,
   partitionPathsForAutoCommit,
   readGitInfo,
@@ -47,7 +48,12 @@ export function taskScopedCommitMessage(
   return `${defaultType}(${scope}): ${msg}`;
 }
 
-/** Commit all committable dirty paths; returns whether a commit was created. */
+/**
+ * Commit all committable dirty paths (staged and unstaged, including deletions
+ * and renames); returns whether a commit was created. Only paths whose
+ * working-tree state is not yet in the index are passed to `git add`; staged
+ * changes are already part of the commit.
+ */
 export async function commitDirtyWorkingTree(
   cwd: string,
   message: string,
@@ -67,7 +73,11 @@ export async function commitDirtyWorkingTree(
     log.info(dim(`  would commit ${committable.length} path(s): ${message}`));
     return true;
   }
-  await gitAddPaths(cwd, committable);
+  const committableSet = new Set(committable);
+  await gitAddPaths(
+    cwd,
+    (await listUnstagedRelPaths(cwd)).filter((p) => committableSet.has(p)),
+  );
   await runGit(cwd, ["commit", "-q", "-m", message]);
   log.ok(`Committed: ${message}`);
   return true;
