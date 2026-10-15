@@ -75,7 +75,7 @@ jobs:
           pnpm lint
           pnpm typecheck
           pnpm build
-          node --test "tests/*.test.mjs"
+          node --test tests/*.test.mjs
           node scripts/smoke.mjs
       - name: Publish (OIDC, provenance)
         run: npm publish --access public

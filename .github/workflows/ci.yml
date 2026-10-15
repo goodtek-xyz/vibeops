@@ -50,7 +50,7 @@ jobs:
       - name: Build
         run: pnpm build
       - name: Test
-        run: node --test "tests/*.test.mjs"
+        run: node --test tests/*.test.mjs
       - name: Smoke
         run: node scripts/smoke.mjs
 

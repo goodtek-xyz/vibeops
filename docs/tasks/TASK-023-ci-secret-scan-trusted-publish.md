@@ -51,7 +51,7 @@ Every pull request and every push to `main` is verified by CI (lint, typecheck, 
 ## Result
 
 - new: `.github/workflows/ci.yml` (jobs `Verify · node 20|22|24`, `Secret scan · gitleaks`), `.github/workflows/publish.yml`, `eslint.config.js`
-- update: `package.json` (`lint` script, ESLint dev dependencies pinned exactly, repository URLs), `.vibeops.json` (`git` block, `merge.requiredChecks`), `AGENTS.md` (public OSS note), `docs/project/09-deployment.md` (release flow, Trusted Publishing owner steps, manual path kept), `CHANGELOG.md` (Unreleased)
+- update: `package.json` (`lint` script, `test` / `smoke` pass a shell-expanded glob to `node --test` — Node 20's test runner has no glob support, so the quoted pattern failed there, ESLint dev dependencies pinned exactly, repository URLs), `.vibeops.json` (`git` block, `merge.requiredChecks`), `AGENTS.md` (public OSS note), `docs/project/09-deployment.md` (release flow, Trusted Publishing owner steps, manual path kept), `CHANGELOG.md` (Unreleased)
 - Lint fixes: useless `\-` escapes (3 files), unused `eslint-disable` directive; `no-useless-assignment` / `preserve-caught-error` (new in ESLint 10 `recommended`) are off for now — they touch status / lock / new-cycle flows and belong in their own TASK
 - Hygiene: internal secret-manager URL → `<your-infisical-host>` (`scripts/*.sh`, `.env.example`, `09-deployment.md`); personal checkout paths → `<vibeops-checkout>` (TASK-007/008/010); internal service name / other repo's TASK number → generic (TASK-022, test fixture, log); private repo name → generic (`v3-scope.md`); `.infisical.json` untracked + gitignored
 
