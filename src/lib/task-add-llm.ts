@@ -86,7 +86,7 @@ export async function llmScaffoldTask(params: {
     const parsed = JSON.parse(extractJsonObject(raw)) as Record<string, unknown>;
     const title =
       typeof parsed.title === "string"
-        ? parsed.title.replace(/^TASK-\d+\s*[:\-]\s*/i, "").trim()
+        ? parsed.title.replace(/^TASK-\d+\s*[:-]\s*/i, "").trim()
         : "";
     const slug =
       typeof parsed.slug === "string" ? slugify(parsed.slug, "task") : slugify(title, "task");

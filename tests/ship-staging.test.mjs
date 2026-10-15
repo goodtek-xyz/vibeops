@@ -38,7 +38,7 @@ function repoWith(files) {
   return dir;
 }
 
-/** `name-status` of HEAD: e.g. ["D\tllms-gateway", "R100\tc\tc2"]. */
+/** `name-status` of HEAD: e.g. ["D\told-gateway", "R100\tc\tc2"]. */
 function headChanges(dir) {
   return git(dir, "show", "--name-status", "--format=", "-M", "HEAD")
     .split("\n")
@@ -50,13 +50,13 @@ function statusClean(dir) {
 }
 
 test("ship commits a deletion that is already staged (git rm --cached + file removed)", async () => {
-  const dir = repoWith({ "llms-gateway": "bin\n", "keep.txt": "k\n" });
+  const dir = repoWith({ "old-gateway": "bin\n", "keep.txt": "k\n" });
   try {
-    git(dir, "rm", "-q", "--cached", "llms-gateway");
-    rmSync(join(dir, "llms-gateway"));
+    git(dir, "rm", "-q", "--cached", "old-gateway");
+    rmSync(join(dir, "old-gateway"));
     writeFileSync(join(dir, "keep.txt"), "k2\n");
     assert.equal(await commitDirtyWorkingTree(dir, "feat(task-134): drop gateway", false), true);
-    assert.deepEqual(headChanges(dir).sort(), ["D\tllms-gateway", "M\tkeep.txt"]);
+    assert.deepEqual(headChanges(dir).sort(), ["D\told-gateway", "M\tkeep.txt"]);
     assert.ok(statusClean(dir));
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -142,12 +142,12 @@ test("ship still leaves build artifacts out of the auto-commit", async () => {
 
 test("parsePorcelainZ reads -z records, including rename sources and names containing ' -> '", () => {
   const out = parsePorcelainZ(
-    "D  llms-gateway\0 D b\0R  new name\0a -> b\0RM c2\0c\0 M sp ace\0?? dir/\0",
+    "D  old-gateway\0 D b\0R  new name\0a -> b\0RM c2\0c\0 M sp ace\0?? dir/\0",
   );
   assert.deepEqual(
     out.map((e) => [e.code, e.path, e.origPath ?? null, e.staged, e.unstaged, e.untracked]),
     [
-      ["D ", "llms-gateway", null, true, false, false],
+      ["D ", "old-gateway", null, true, false, false],
       [" D", "b", null, false, true, false],
       ["R ", "new name", "a -> b", true, false, false],
       ["RM", "c2", "c", true, true, false],

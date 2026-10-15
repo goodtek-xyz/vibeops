@@ -1,0 +1,97 @@
+# CI for pull requests and main.
+#
+# Public repository: jobs run only on GitHub-hosted runners, so pull requests
+# from forks never execute on maintainer-owned machines. The token is read-only.
+# Third-party actions are pinned by full commit SHA (tag in the trailing comment).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  verify:
+    name: Verify · node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # package.json engines: node >= 20
+        node: ["20", "22", "24"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install pnpm (version from package.json packageManager)
+        run: npm install -g "$(node -p "require('./package.json').packageManager")"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Git identity for test repositories
+        run: |
+          git config --global user.name "vibeops-ci"
+          git config --global user.email "ci@example.invalid"
+          git config --global init.defaultBranch main
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Build
+        run: pnpm build
+      - name: Test
+        run: node --test "tests/*.test.mjs"
+      - name: Smoke
+        run: node scripts/smoke.mjs
+
+  secret-scan:
+    name: Secret scan · gitleaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GITLEAKS_VERSION: 8.30.1
+      # sha256 of gitleaks_8.30.1_linux_x64.tar.gz; must also match the release's checksums file.
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install gitleaks (pinned release, checksum verified)
+        run: |
+          set -euo pipefail
+          tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          workdir="$(mktemp -d)"
+          cd "$workdir"
+          curl -sSfLO "${base}/${tarball}"
+          curl -sSfLO "${base}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          grep -E "^[0-9a-f]{64}  ${tarball}\$" "gitleaks_${GITLEAKS_VERSION}_checksums.txt" > release.sha256
+          echo "${GITLEAKS_SHA256}  ${tarball}" > pinned.sha256
+          cmp release.sha256 pinned.sha256
+          sha256sum -c pinned.sha256
+          tar -xzf "${tarball}" gitleaks
+          install -m 0755 gitleaks "${RUNNER_TEMP}/gitleaks"
+          "${RUNNER_TEMP}/gitleaks" version
+      - name: Scan pull request commits
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          "${RUNNER_TEMP}/gitleaks" git --redact --no-banner --exit-code 1 \
+            --log-opts "${BASE_SHA}..${HEAD_SHA}" .
+      - name: Scan full history
+        if: github.event_name == 'push'
+        run: |
+          "${RUNNER_TEMP}/gitleaks" git --redact --no-banner --exit-code 1 .

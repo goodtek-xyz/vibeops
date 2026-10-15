@@ -228,7 +228,7 @@ Per user request, the Yes / No question UX of `notion init` was completely revis
   | 10 | `notion init --enable --projects-db PROJ-NEW --tasks-db TASK-NEW --dry-run` | Shows diff `~ projectsDatabaseId PROJ123 → PROJ-NEW`, `~ tasksDatabaseId TASK456 → TASK-NEW`. Real config unchanged |
   | 11 | `notion init` (run in /tmp) | `✗ no .vibeops.json. Run \`vibeops init\` first…` + exit 1 |
 
-- Live-repo read-only: `node dist/cli.js notion init --dry-run --cwd /Users/hjhamm/goodtek/vibeops`. After the command, `.vibeops.json` / `.vibeops.env.example` git-status → unchanged.
+- Live-repo read-only: `node dist/cli.js notion init --dry-run --cwd <vibeops-checkout>`. After the command, `.vibeops.json` / `.vibeops.env.example` git-status → unchanged.
 - Zero LLM / Cursor-CLI / Notion-mutation / GitHub-API / Git-mutation calls this round. Only `users.me` once (`databases.retrieve` skipped due to token rejection) for external traffic.
 - Deferred: vitest auto-regressions (cumulative since TASK-001 ~ 010). To be consolidated in the polish round.
 

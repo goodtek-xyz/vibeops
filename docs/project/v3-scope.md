@@ -339,7 +339,7 @@ Optional: MVP Phase (legacy compat — ignore in new TASKs), Implementation Plan
 
 | User situation | Action |
 |----------------|--------|
-| goodtek-web numbered TASKs | Keep files; drop Notion config from `.vibeops.json`; use v3 CLI only. |
+| Consumer repos with numbered TASKs | Keep files; drop Notion config from `.vibeops.json`; use v3 CLI only. |
 | Repos with `TASK-mvp` | One-time: finish or archive MVP TASK; use numbered `task add` going forward. |
 | `node /path/to/cli.js` | `npm i -g @goodtek/vibeops@1` |
 | Notion dashboard | Export/archive separately; not supported in v3. |
@@ -369,7 +369,7 @@ Optional: MVP Phase (legacy compat — ignore in new TASKs), Implementation Plan
 | **P1** | Strip Notion/GitHub/plan/next; slim `cli.ts`; v3 templates + installer manifest. |
 | **P2** | `task add` guide-only + simplified LLM scaffold; remove `start`. |
 | **P3** | `task ship` memory-file writer; `task reship`; slim `status`. |
-| **P4** | README, 1.0.0 publish, goodtek-web dogfood note. |
+| **P4** | README, 1.0.0 publish, consumer dogfood note. |
 
 ---
 

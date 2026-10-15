@@ -13,13 +13,24 @@
   "github": {
     "enabled": true,
     "mode": "gh-cli",
-    "owner": "goodtekxyz",
+    "owner": "goodtek-xyz",
     "repo": "vibeops",
     "remote": "origin",
     "visibility": "public",
-    "url": "https://github.com/goodtekxyz/vibeops"
+    "url": "https://github.com/goodtek-xyz/vibeops"
+  },
+  "git": {
+    "remote": "origin",
+    "host": "github",
+    "integrationBranch": "main",
+    "productionBranch": "main"
   },
   "merge": {
-    "allowNoChecks": true
+    "requiredChecks": [
+      "Verify · node 20",
+      "Verify · node 22",
+      "Verify · node 24",
+      "Secret scan · gitleaks"
+    ]
   }
 }

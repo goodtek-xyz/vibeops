@@ -182,9 +182,9 @@ Completed 2026-05-11 (awaiting review). Implemented the 4 commands of MVP 3 Git 
   6. `task done TASK-001` → Status transitions to `Review`, prints recommended commit (`feat(task-001): CLI bootstrap`) + merge guide + next-TASK candidate (TASK-000) + Notion TODO.
   7. `task done TASK-001 --finalize` → Status `Done`.
   8. Placeholder-only-Result `TASK-099-fake.md` with `task done TASK-099` → "2 required section(s) still empty" + exit 1.
-- Live-repo read-only check: `node dist/cli.js task check TASK-008 --cwd /Users/hjhamm/goodtek/vibeops` → Status `Planned`, missing-Git-Context notice, 6 AC checklist items, Result / Test Result placeholders detected, 3 missing-item notices, reviewer-agent-not-installed notice. Zero file / Git changes.
+- Live-repo read-only check: `node dist/cli.js task check TASK-008 --cwd <vibeops-checkout>` → Status `Planned`, missing-Git-Context notice, 6 AC checklist items, Result / Test Result placeholders detected, 3 missing-item notices, reviewer-agent-not-installed notice. Zero file / Git changes.
 - **2026-05-11 follow-up patch verification** — changed-files detection bug fix:
-  - In the live repo (`git status --porcelain` shows 13 modified + 17 untracked = 30 changed files, 0 staged, 0 committed-since-base), `node dist/cli.js task check TASK-008 --cwd /Users/hjhamm/goodtek/vibeops`:
+  - In the live repo (`git status --porcelain` shows 13 modified + 17 untracked = 30 changed files, 0 staged, 0 committed-since-base), `node dist/cli.js task check TASK-008 --cwd <vibeops-checkout>`:
     - `working tree changed files 30`, `committed changed files 0`, `total changed files 30`.
     - In "Expected Files to Change vs current diff", `docs/project/03-current-state.md` matches `✓` (previously 0% because it was unstaged).
     - Prints `basis: working tree(30) ∪ committed(0) = total(30) files` to make the merge basis explicit.

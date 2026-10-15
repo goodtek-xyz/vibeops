@@ -5,7 +5,7 @@
 #   1. Create a granular npm token (Read and write, bypass 2FA for publish).
 #   2. Store as NPM_TOKEN in Infisical (env local, path / by default)
 #      OR put NPM_TOKEN=... in a gitignored .env
-#   3. export INFISICAL_API_URL=https://infisical.goodtek.xyz
+#   3. export INFISICAL_API_URL=https://<your-infisical-host>
 #      infisical login && infisical init   # link this folder to the Infisical project
 #
 # Usage:
@@ -79,7 +79,7 @@ EOF
 
   if [[ -f .infisical.json ]] && command -v infisical >/dev/null 2>&1; then
     if [[ -z "${INFISICAL_API_URL:-}" ]]; then
-      echo "[npm-publish] set INFISICAL_API_URL (e.g. https://infisical.goodtek.xyz)" >&2
+      echo "[npm-publish] set INFISICAL_API_URL (e.g. https://<your-infisical-host>)" >&2
       exit 1
     fi
     echo "[npm-publish] injecting secrets via Infisical (env=${INFISICAL_ENV} path=${INFISICAL_PATH})" >&2
@@ -107,7 +107,7 @@ EOF
 
 Options:
   1) Infisical (preferred)
-       export INFISICAL_API_URL=https://infisical.goodtek.xyz
+       export INFISICAL_API_URL=https://<your-infisical-host>
        infisical login
        infisical init          # once per clone
        # Add secret NPM_TOKEN at path / (env: local)

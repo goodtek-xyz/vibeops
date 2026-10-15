@@ -6,7 +6,7 @@ Shipped
 
 ## Goal
 
-`vibeops task ship` must commit deletions and renames like any other change. Observed 2026-10-15 in a consumer repo: with a staged deletion (`git rm --cached llms-gateway` + file removed, status `D `) `task ship TASK-134 -m "…"` failed with `fatal: pathspec 'llms-gateway' did not match any files`.
+`vibeops task ship` must commit deletions and renames like any other change. Observed 2026-10-15 in a consumer repo: with a staged deletion (`git rm --cached old-gateway` + file removed, status `D `) `task ship TASK-NNN -m "…"` failed with `fatal: pathspec 'old-gateway' did not match any files`.
 
 ## Scope
 
@@ -46,7 +46,7 @@ Shipped
 
 ## Test Result
 
-- Before (source = installed 3.1.0): `tests/ship-staging.test.mjs` 4 of 6 fail — `fatal: pathspec 'llms-gateway' did not match any files`, same for `gone.txt` and rename source `c.txt`; quoted names listed as `"sp ace.txt"` / `"\355\225\234…"`
-- End-to-end before (installed 3.1.0): `task ship -m "drop gateway" --no-pr` → `git add -- llms-gateway docs/tasks/TASK-001-drop-gateway.md` → `fatal: pathspec 'llms-gateway' did not match any files`
-- End-to-end after (this build, same state): commit `feat(task-001): drop gateway` with `D llms-gateway` + `A docs/tasks/…`, Shipped, pushed; clean tree
+- Before (source = installed 3.1.0): `tests/ship-staging.test.mjs` 4 of 6 fail — `fatal: pathspec 'old-gateway' did not match any files`, same for `gone.txt` and rename source `c.txt`; quoted names listed as `"sp ace.txt"` / `"\355\225\234…"`
+- End-to-end before (installed 3.1.0): `task ship -m "drop gateway" --no-pr` → `git add -- old-gateway docs/tasks/TASK-001-drop-gateway.md` → `fatal: pathspec 'old-gateway' did not match any files`
+- End-to-end after (this build, same state): commit `feat(task-001): drop gateway` with `D old-gateway` + `A docs/tasks/…`, Shipped, pushed; clean tree
 - `pnpm typecheck` OK; `pnpm test` 96 pass, 0 fail; `pnpm smoke` OK (exit 0)
