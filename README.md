@@ -213,11 +213,16 @@ Before calling `gh pr merge` / `glab mr merge`:
   - **failed:** `FAILURE`, `CANCELLED`, `TIMED_OUT`, `ACTION_REQUIRED`, `STARTUP_FAILURE`, `STALE`, `ERROR`
   - **pending:** CheckRun `REQUESTED`, `QUEUED`, `IN_PROGRESS`, `WAITING`, `PENDING`; StatusContext `PENDING`, `EXPECTED`
   - **anything missing or undocumented fails closed** (treated as failed). Several checks with the same name: any failure fails.
+- **GitHub Actions — the PR's own CI, not leftovers:** the rollup lists every check on the head commit, including checks from other events (e.g. a finished `push` workflow on `develop` when a release PR `develop → main` is opened). Right after a PR is opened or pushed, GitHub has not created its `pull_request` run — or that run's jobs — yet, so such a rollup looked green and 3.1.x merged before CI started. The gate therefore also reads the GitHub Actions API for the head SHA:
+  - **Expected workflows:** every `.github/workflows/*.yml|yaml` at the head commit whose `on:` triggers `pull_request` for this PR, using GitHub's filter rules — `branches` / `branches-ignore` against the base branch, `paths` / `paths-ignore` against the PR's changed files (first 300, like GitHub), and `types` (a custom list must contain both `opened` and `synchronize`). Disabled workflows are skipped; `pull_request_target`, `workflow_call` and other events are not awaited. Each expected workflow must have a `pull_request` run for the head SHA — until it appears the gate **waits** (`workflow … (pull_request) has not started for <sha> yet`), then refuses at `waitTimeoutSeconds`.
+  - **All runs for the head SHA** (any event, latest run per workflow + event) must be `completed` with `success`, `neutral` or `skipped`. A queued / in-progress / waiting run waits; any other conclusion refuses immediately — including `startup_failure` (no jobs, so nothing in the rollup) and `action_required` (fork PR awaiting approval).
+  - The Actions API is required: if it cannot be read, the gate keeps waiting (back-off) and refuses at the timeout — it never merges blind.
 - **GitLab:** the MR head pipeline must be `success` or `skipped`. `failed`, `canceled`, `manual` and unknown statuses refuse; `created` / `pending` / `running` / `scheduled` / … wait.
 - **Host output is verified:** if `gh pr view` lacks or has empty `state`, `mergeable`, `headRefOid`, or `statusCheckRollup` is not a list (GitLab: `state`, `sha`, `merge_status`, `detailed_merge_status`, `head_pipeline`), the merge is refused.
 - **Failed check → refuse immediately** (exit code 1, checks named). **Pending → wait** up to `waitTimeoutSeconds`, then refuse. There is no override flag: fix CI (re-run `task ship`) and rerun `task merge`.
-- **No checks at all → refuse** (after `emptyRollupGraceSeconds`, which covers checks not yet registered right after a push) unless `allowNoChecks: true`.
-- **The merge is pinned to the checked commit:** `gh pr merge --match-head-commit <sha>` (requires **gh ≥ 2.13.0**) / `glab mr merge --auto-merge=false --sha <sha>` (verified with glab 1.106). A push after the check makes the host refuse. A GitLab `405` re-runs the gate and retries once with the same flags.
+- **No checks at all → refuse** unless `allowNoChecks: true`. "No checks" means: empty rollup, no GitHub Actions run and no expected workflow for the head commit (GitLab: no pipeline). For CI outside GitHub Actions (commit statuses / check apps), the empty list is re-polled for `emptyRollupGraceSeconds` first; list such checks in `requiredChecks` so the gate waits for them by name.
+- **Waiting** polls the host (`gh pr view` + the Actions REST API) every `pollIntervalSeconds` (default 10 s, the default of `gh pr checks --watch`) until the state changes, bounded by `waitTimeoutSeconds` (default 900 s). Host read errors back off exponentially with jitter (capped at 60 s, GitHub's guidance for rate-limited clients).
+- **The merge is pinned to the checked commit:** right before merging the gate re-reads the PR head; if it moved, the new head is evaluated from scratch. The merge itself uses `gh pr merge --match-head-commit <sha>` (requires **gh ≥ 2.13.0**) / `glab mr merge --auto-merge=false --sha <sha>` (verified with glab 1.106), so a push between the last check and the merge makes the host refuse. A GitLab `405` re-runs the gate and retries once with the same flags.
 
 ### Configuration (`.vibeops.json` → `merge`)
 
@@ -227,7 +232,7 @@ Before calling `gh pr merge` / `glab mr merge`:
     "requiredChecks": ["build", "lint*"],
     "releaseRequiredChecks": ["release smoke"],
     "waitTimeoutSeconds": 900,
-    "pollIntervalSeconds": 5,
+    "pollIntervalSeconds": 10,
     "emptyRollupGraceSeconds": 30,
     "allowNoChecks": false
   }
@@ -239,13 +244,13 @@ Before calling `gh pr merge` / `glab mr merge`:
 | `requiredChecks` | `[]` | array of non-empty strings | Checks that must be present and green for `task merge`. A missing one refuses: `required check "X" never ran`. |
 | `releaseRequiredChecks` | `[]` | array of non-empty strings | Same for `task release` (integration → production). Shown by `task release --dry-run`. |
 | `waitTimeoutSeconds` | `900` | integer 1–7200 | Max wait for pending checks. |
-| `pollIntervalSeconds` | `5` | integer 1–300, ≤ timeout | Poll interval while waiting. |
-| `emptyRollupGraceSeconds` | `30` | integer 0–600 | How long an empty check list is re-polled before "no checks" applies. |
+| `pollIntervalSeconds` | `10` | integer 1–300, ≤ timeout | Poll interval while waiting (same default as `gh pr checks --watch`). |
+| `emptyRollupGraceSeconds` | `30` | integer 0–600 | Only when no GitHub Actions workflow is expected: how long an empty check list is re-polled before "no checks" applies (time for external CI to report). |
 | `allowNoChecks` | `false` | boolean | Merge a PR that has no checks at all (repo without CI). Prints one warning per such merge. |
 
 - Check names are exact (`CheckRun.name` / `StatusContext.context`) or a `*` glob (`"lint*"`, `"* · linux"`). Required checks are GitHub-only; GitLab gates on the head pipeline.
 - The block is validated strictly: it must be an object, unknown keys (typos) and wrong types are errors, and `task merge` / `task release` exit 1 naming the key.
-- **Recommended:** list your CI jobs in `requiredChecks`. Without it, the gate only sees the checks that happened to start — a workflow that never triggers is invisible.
+- **Recommended:** list your CI jobs in `requiredChecks`. Required checks must be present **and** completed green; missing or pending means wait. Without them the gate still waits for every GitHub Actions workflow that triggers on the PR (see above), but checks from other CI systems are only seen once they report.
 
 ## License
 
