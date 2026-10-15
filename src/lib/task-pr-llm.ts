@@ -27,7 +27,7 @@ Body: markdown with Summary, Changes, Test plan sections. Facts only from the in
 /** Normalize PR titles to Conventional Commits with the TASK id as scope. */
 export function normalizeTaskPrTitle(taskId: string, rawTitle: string): string {
   const trimmed = rawTitle.trim().replace(/\s+/g, " ");
-  const withoutTaskPrefix = trimmed.replace(/^TASK-\d+\s*[:\-]\s*/i, "").trim();
+  const withoutTaskPrefix = trimmed.replace(/^TASK-\d+\s*[:-]\s*/i, "").trim();
   return taskScopedCommitMessage(
     taskId,
     withoutTaskPrefix || trimmed,

@@ -164,7 +164,7 @@ Completed 2026-05-11 (awaiting review). Implemented the `vibeops task generate` 
   | 10 | `task generate --count 25 --dry-run` | `! --count 25 is large (soft cap 20). Continuing, but the Planner Agent may push back.` warning; count=25 proceeds |
   | 11 | `task generate --count abc --dry-run` | `! --count must be a positive integer (got: "abc"). Falling back to default 8.` + count=8 proceeds |
 
-- Live-repo read-only check: `node dist/cli.js task generate --dry-run --cwd /Users/hjhamm/goodtek/vibeops` → next id `TASK-013` (current max TASK-012 + 1), inventory 10 ✓ + brief 1 ·, 0 files written. `git status --porcelain | wc -l` identical before/after the command.
+- Live-repo read-only check: `node dist/cli.js task generate --dry-run --cwd <vibeops-checkout>` → next id `TASK-013` (current max TASK-012 + 1), inventory 10 ✓ + brief 1 ·, 0 files written. `git status --porcelain | wc -l` identical before/after the command.
 - Sandbox cleanup: the 4 `--scaffold`-produced TASK-003 ~ TASK-006-planned-task.md files exist only in the sandbox temp dir (`/var/folders/...`); none in the live repo. Only `--dry-run` was run against the live repo.
 - Zero LLM-API / Cursor-CLI / Notion-API / GitHub-API / Git-mutation calls in this round.
 - Deferred: vitest auto-regressions (accumulated up to TASK-007). Will be consolidated in the polish round.

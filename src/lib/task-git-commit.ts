@@ -10,7 +10,7 @@ import {
 } from "./git.js";
 
 export function featCommitMessageFor(taskId: string, title: string): string {
-  const slug = title.replace(/^TASK-\d+\s*[:\-]\s*/i, "").trim() || taskId;
+  const slug = title.replace(/^TASK-\d+\s*[:-]\s*/i, "").trim() || taskId;
   return `feat(${taskId.toLowerCase()}): ${slug}`;
 }
 

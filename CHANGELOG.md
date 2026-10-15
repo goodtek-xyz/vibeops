@@ -4,6 +4,17 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+### Added
+
+- **CI** (`.github/workflows/ci.yml`, pull requests + `main`): lint (ESLint, new `pnpm lint`), typecheck, build, tests and smoke on Node 20 / 22 / 24, GitHub-hosted runners only, read-only token, actions pinned by commit SHA (TASK-023).
+- **Secret scanning in CI:** gitleaks 8.30.1 CLI (pinned release, sha256 checked against the pinned value and the release checksums file); PR commits `base..head`, full history on `main`; any finding fails the job (TASK-023).
+- **npm Trusted Publishing** (`.github/workflows/publish.yml`): tag `vX.Y.Z` on `main` → verify → `npm publish` via OIDC with automatic provenance; no npm token in CI. Owner setup in `docs/project/09-deployment.md`; the manual `pnpm publish:npm` path stays until it is configured (TASK-023).
+
+### Changed
+
+- `package.json` `repository` / `homepage` / `bugs` point at `github.com/goodtek-xyz/vibeops` (required to match exactly for Trusted Publishing provenance).
+- Docs, scripts and examples use placeholders instead of maintainer-internal hosts and paths; `.infisical.json` is no longer tracked (gitignored).
+
 ## 3.1.1 - 2026-10-15
 
 ### Fixed

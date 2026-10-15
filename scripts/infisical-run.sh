@@ -3,11 +3,11 @@
 # Requires INFISICAL_API_URL (self-hosted Infisical).
 #
 # Usage:
-#   export INFISICAL_API_URL=https://infisical.goodtek.xyz
+#   export INFISICAL_API_URL=https://<your-infisical-host>
 #   scripts/infisical-run.sh [--env local|dev|prod] [--path /] -- <command> [args...]
 set -euo pipefail
 
-: "${INFISICAL_API_URL:?INFISICAL_API_URL is required (e.g. export INFISICAL_API_URL=https://infisical.goodtek.xyz)}"
+: "${INFISICAL_API_URL:?INFISICAL_API_URL is required (e.g. export INFISICAL_API_URL=https://<your-infisical-host>)}"
 
 ENVIRONMENT="${INFISICAL_ENV:-local}"
 SECRET_PATH="${INFISICAL_PATH:-/}"

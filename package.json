@@ -8,11 +8,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/goodtekxyz/vibeops.git"
+    "url": "git+https://github.com/goodtek-xyz/vibeops.git"
   },
-  "homepage": "https://github.com/goodtekxyz/vibeops#readme",
+  "homepage": "https://github.com/goodtek-xyz/vibeops#readme",
   "bugs": {
-    "url": "https://github.com/goodtekxyz/vibeops/issues"
+    "url": "https://github.com/goodtek-xyz/vibeops/issues"
   },
   "publishConfig": {
     "access": "public"
@@ -34,9 +34,10 @@
     "dev": "tsx src/cli.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
     "start": "node dist/cli.js",
-    "test": "pnpm build && node --test \"tests/*.test.mjs\"",
-    "smoke": "pnpm typecheck && pnpm build && node --test \"tests/*.test.mjs\" && node scripts/smoke.mjs",
+    "test": "pnpm build && node --test tests/*.test.mjs",
+    "smoke": "pnpm typecheck && pnpm build && node --test tests/*.test.mjs && node scripts/smoke.mjs",
     "clean": "rm -rf dist",
     "prepack": "pnpm clean && pnpm build",
     "publish:dry": "pnpm publish --dry-run --no-git-checks",
@@ -58,8 +59,11 @@
     "gray-matter": "^4.0.3"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
     "@types/node": "^20.14.0",
+    "eslint": "10.11.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "typescript-eslint": "8.71.0"
   }
 }

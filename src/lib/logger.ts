@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 const useColor = (): boolean => {
   if (process.env["NO_COLOR"]) return false;
   if (process.env["FORCE_COLOR"]) return true;
