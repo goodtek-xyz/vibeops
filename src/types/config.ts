@@ -34,7 +34,7 @@ export interface VibeopsMergeConfig {
   releaseRequiredChecks?: string[];
   /** Max wait for pending checks, seconds. Default 900. */
   waitTimeoutSeconds?: number;
-  /** Poll interval while waiting, seconds. Default 5. */
+  /** Poll interval while waiting, seconds. Default 10 (as `gh pr checks --watch`). */
   pollIntervalSeconds?: number;
   /** How long an empty check list is re-polled after a push, seconds. Default 30. */
   emptyRollupGraceSeconds?: number;

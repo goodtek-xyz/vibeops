@@ -18,7 +18,8 @@ export const MERGE_GATE_DEFAULTS: MergeGateConfig = {
   requiredChecks: [],
   releaseRequiredChecks: [],
   waitTimeoutSeconds: 900,
-  pollIntervalSeconds: 5,
+  // Same default as `gh pr checks --watch --interval` (cli.github.com/manual/gh_pr_checks).
+  pollIntervalSeconds: 10,
   emptyRollupGraceSeconds: 30,
   allowNoChecks: false,
 };
