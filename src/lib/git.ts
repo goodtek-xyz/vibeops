@@ -221,7 +221,7 @@ export async function stashGovernanceIfBlocking(cwd: string): Promise<string | n
   const gov = await gitGovernanceOnlyDirty(cwd);
   if (!gov.onlyGovernance || gov.allPaths.length === 0) return null;
 
-  const tracked = parsePorcelain(await gitStatusPorcelain(cwd))
+  const tracked = (await gitStatusEntries(cwd))
     .filter((e) => !e.untracked && isGovernanceDocumentationPath(e.path))
     .map((e) => e.path);
   if (tracked.length === 0) return null;
@@ -332,57 +332,58 @@ export async function gitStatusPorcelain(cwd: string): Promise<string[]> {
 
 interface PorcelainEntry {
   readonly code: string;
+  /** The index differs from HEAD for this path (X column). */
   readonly staged: boolean;
+  /** The working tree differs from the index for this path (Y column). */
   readonly unstaged: boolean;
   readonly untracked: boolean;
   readonly path: string;
+  /** Source path of a rename / copy (`R` / `C`). */
   readonly origPath?: string;
 }
 
-function parsePorcelainLine(line: string): PorcelainEntry | null {
-  if (line.length < 3) return null;
-  const code = line.slice(0, 2);
-  const rest = line.slice(3);
-  if (code === "??") {
-    return { code, staged: false, unstaged: false, untracked: true, path: rest };
-  }
-  if (code === "!!") {
-    return null;
-  }
-  const x = code.charAt(0);
-  const y = code.charAt(1);
-  // Rename / copy: `R  old -> new` or `C  old -> new`
-  if (x === "R" || x === "C") {
-    const arrow = rest.indexOf(" -> ");
-    if (arrow >= 0) {
-      const origPath = rest.slice(0, arrow);
-      const path = rest.slice(arrow + 4);
-      return {
-        code,
-        staged: true,
-        unstaged: y !== " " && y !== "?",
-        untracked: false,
-        path,
-        origPath,
-      };
-    }
-  }
-  return {
-    code,
-    staged: x !== " " && x !== "?",
-    unstaged: y !== " " && y !== "?",
-    untracked: false,
-    path: rest,
-  };
-}
-
-function parsePorcelain(lines: string[]): PorcelainEntry[] {
+/**
+ * Parse `git status --porcelain=v1 -z`: records are NUL-terminated, paths are
+ * never quoted, and a rename / copy record is followed by its source path as a
+ * separate NUL-terminated field (`XY new\0old\0`).
+ */
+export function parsePorcelainZ(stdout: string): PorcelainEntry[] {
+  const fields = stdout.split("\0");
   const out: PorcelainEntry[] = [];
-  for (const line of lines) {
-    const entry = parsePorcelainLine(line);
-    if (entry !== null) out.push(entry);
+  for (let i = 0; i < fields.length; i++) {
+    const record = fields[i]!;
+    if (record.length < 4) continue;
+    const code = record.slice(0, 2);
+    const path = record.slice(3);
+    if (code === "!!") continue;
+    if (code === "??") {
+      out.push({ code, staged: false, unstaged: false, untracked: true, path });
+      continue;
+    }
+    const x = code.charAt(0);
+    const y = code.charAt(1);
+    let origPath: string | undefined;
+    if (x === "R" || x === "C" || y === "R" || y === "C") {
+      origPath = fields[i + 1];
+      i += 1;
+    }
+    out.push({
+      code,
+      staged: x !== " ",
+      unstaged: y !== " ",
+      untracked: false,
+      path,
+      ...(typeof origPath === "string" && origPath.length > 0 ? { origPath } : {}),
+    });
   }
   return out;
+}
+
+/** Parsed `git status --porcelain=v1 -z`; empty when the repo is unreadable. */
+async function gitStatusEntries(cwd: string): Promise<PorcelainEntry[]> {
+  const res = await tryGit(cwd, ["status", "--porcelain=v1", "-z"]);
+  if (!res) return [];
+  return parsePorcelainZ(res.stdout);
 }
 
 /** Paths under these prefixes may stay uncommitted across `start` / `done` / doc updates. */
@@ -475,7 +476,7 @@ export async function tryResolveGovernanceUnmerged(cwd: string): Promise<string[
 }
 
 export async function listWorkingTreeRelPaths(cwd: string): Promise<string[]> {
-  const entries = parsePorcelain(await gitStatusPorcelain(cwd));
+  const entries = await gitStatusEntries(cwd);
   const all = new Set<string>();
   for (const e of entries) {
     all.add(e.path);
@@ -509,12 +510,29 @@ export function partitionPathsForAutoCommit(
   return { committable, excluded, unmerged };
 }
 
+/**
+ * Paths whose working-tree state is not yet in the index: untracked files and
+ * entries with a Y-column change (modified, deleted, type-changed, unmerged).
+ * Index-only changes — a staged deletion (`D `), the source of a staged rename
+ * (`R  old -> new`) — are already recorded and exist in neither the index nor
+ * the working tree, so `git add` must not be given them (it fails with
+ * `pathspec … did not match any files`).
+ */
+export async function listUnstagedRelPaths(cwd: string): Promise<string[]> {
+  const entries = await gitStatusEntries(cwd);
+  return entries.filter((e) => e.untracked || e.unstaged).map((e) => e.path);
+}
+
+/**
+ * Stage `paths` with git's own semantics: `-A` records modifications, new files
+ * and deletions alike; `:(literal)` keeps names with glob characters exact.
+ */
 export async function gitAddPaths(cwd: string, paths: readonly string[]): Promise<void> {
   if (paths.length === 0) return;
   const chunkSize = 80;
   for (let i = 0; i < paths.length; i += chunkSize) {
-    const slice = paths.slice(i, i + chunkSize);
-    await runGit(cwd, ["add", "--", ...slice]);
+    const slice = paths.slice(i, i + chunkSize).map((p) => `:(literal)${p}`);
+    await runGit(cwd, ["add", "-A", "--", ...slice]);
   }
 }
 
@@ -529,8 +547,7 @@ export async function gitGovernanceOnlyDirty(cwd: string): Promise<{
   readonly nonGovernancePaths: readonly string[];
   readonly onlyGovernance: boolean;
 }> {
-  const lines = await gitStatusPorcelain(cwd);
-  const entries = parsePorcelain(lines);
+  const entries = await gitStatusEntries(cwd);
   const all = new Set<string>();
   for (const e of entries) {
     all.add(e.path);
@@ -548,17 +565,17 @@ export async function gitGovernanceOnlyDirty(cwd: string): Promise<{
 }
 
 export async function gitWorkingTreeChangedFiles(cwd: string): Promise<string[]> {
-  const entries = parsePorcelain(await gitStatusPorcelain(cwd));
+  const entries = await gitStatusEntries(cwd);
   return entries.filter((e) => e.unstaged).map((e) => e.path);
 }
 
 export async function gitStagedChangedFiles(cwd: string): Promise<string[]> {
-  const entries = parsePorcelain(await gitStatusPorcelain(cwd));
+  const entries = await gitStatusEntries(cwd);
   return entries.filter((e) => e.staged).map((e) => e.path);
 }
 
 export async function gitUntrackedFiles(cwd: string): Promise<string[]> {
-  const entries = parsePorcelain(await gitStatusPorcelain(cwd));
+  const entries = await gitStatusEntries(cwd);
   return entries.filter((e) => e.untracked).map((e) => e.path);
 }
 
@@ -595,7 +612,7 @@ export async function gitAllChangedFilesSinceTaskStart(
   baseCommit: string,
   cwd: string,
 ): Promise<ChangedFilesSummary> {
-  const entries = parsePorcelain(await gitStatusPorcelain(cwd));
+  const entries = await gitStatusEntries(cwd);
   const working = entries.filter((e) => e.unstaged).map((e) => e.path);
   const staged = entries.filter((e) => e.staged).map((e) => e.path);
   const untracked = entries.filter((e) => e.untracked).map((e) => e.path);

@@ -10,6 +10,7 @@
 - **2.5.1:** `task add` preflight + sync diagnosis + incomplete resume.
 - **2.5.2:** `.vibeops.json` / governance dirt soft-pass on integration sync.
 - **3.0.0 (breaking):** merge gate — CheckRun/StatusContext classification fix, fail-closed (incl. no checks unless `merge.allowNoChecks`), strict `merge` config, SHA-pinned merges; requires gh ≥ 2.13.0 (TASK-020).
+- **Unreleased:** `task ship` commits staged / unstaged deletions and renames (`porcelain=v1 -z`, `git add -A` only for unstaged paths) (TASK-022).
 - **3.1.0:** worktree-safe `task add` / `task sync` / `task del` / new-cycle (no integration checkout), repository lock, stash by SHA, global TASK id allocation + ship-time remote id guard (TASK-021).
 
 ## Implementation (this repo)
