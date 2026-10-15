@@ -4,6 +4,8 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 3.1.1 - 2026-10-15
+
 ### Fixed
 
 - **`task ship` with deletions / renames:** a staged deletion (`D `, e.g. `git rm --cached <path>` + file removed) or a staged rename made ship fail with `fatal: pathspec '<path>' did not match any files`, because every dirty path was passed to `git add`. Ship now parses `git status --porcelain=v1 -z` and runs `git add -A -- :(literal)<path>` only for untracked / unstaged paths; staged changes are committed as they are. Unstaged deletions of tracked files are staged as deletions. Names with spaces or non-ASCII characters (previously quoted by porcelain output) are staged correctly (TASK-022).
