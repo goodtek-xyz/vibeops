@@ -255,6 +255,28 @@ test("task branch is created with --no-track (no upstream on origin/develop)", (
   assert.notEqual(upstream.status, 0, "task branch must not track origin/develop");
 });
 
+test("task add --dry-run plans without writing, and names the branch the real run creates", () => {
+  const { b } = setupTwoWorktrees();
+  const headBefore = git(b, "rev-parse", "HEAD");
+  const branchBefore = currentBranch(b);
+  const filesBefore = taskFiles(b);
+
+  // Used to print the plan, then throw ENOENT reading the TASK file it never wrote.
+  const dry = vibeops(b, "task", "add", "--non-interactive", "--idea", "Dry probe", "--dry-run");
+  assert.equal(dry.code, 0, dry.out);
+  assert.doesNotMatch(dry.out, /ENOENT|error/i);
+  assert.deepEqual(taskFiles(b), filesBefore, "dry run writes no TASK file");
+  assert.equal(currentBranch(b), branchBefore);
+  assert.equal(git(b, "rev-parse", "HEAD"), headBefore);
+  assert.equal(git(b, "branch", "--list", "task/*"), "", "dry run creates no branch");
+
+  const real = vibeops(b, "task", "add", "--non-interactive", "--idea", "Dry probe");
+  assert.equal(real.code, 0, real.out);
+  const branch = currentBranch(b);
+  assert.match(branch, /^task\/002-dry-probe$/);
+  assert.match(dry.out, new RegExp(`branch ${branch} from origin/develop`));
+});
+
 test("task sync succeeds while develop is checked out elsewhere; branches deleted, other worktree untouched", () => {
   const { seed, a, b } = setupTwoWorktrees();
   const add = vibeops(b, "task", "add", "--non-interactive", "--idea", "Sync me");

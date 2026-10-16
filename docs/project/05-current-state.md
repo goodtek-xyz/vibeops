@@ -13,6 +13,7 @@
 - **3.1.1:** `task ship` commits staged / unstaged deletions and renames (`porcelain=v1 -z`, `git add -A` only for unstaged paths) (TASK-022).
 - **3.1.2:** merge gate waits for the PR's own GitHub Actions runs (expected `pull_request` workflows + all runs for the head SHA), head re-read before merge (TASK-024); CI on PRs + `main` (lint, typecheck, build, tests, smoke, gitleaks), npm Trusted Publishing workflow, OSS hygiene (TASK-023).
 - **Unreleased:** `--no-merge` (`task release`), `--no-remote-delete` / `--no-close-mr` (`task del`, `task sync`) take effect; they were ignored before (TASK-025).
+- **Unreleased:** `task add --dry-run` no longer crashes (ENOENT) and names the real task branch (TASK-026).
 - **3.1.0:** worktree-safe `task add` / `task sync` / `task del` / new-cycle (no integration checkout), repository lock, stash by SHA, global TASK id allocation + ship-time remote id guard (TASK-021).
 
 ## Implementation (this repo)

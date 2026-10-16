@@ -7,6 +7,7 @@ All notable changes to VibeOps are documented here.
 ### Fixed
 
 - **Negated flags were ignored.** commander stores `--no-foo` as `foo: false` and never sets `noFoo`, but the CLI read `noFoo`, so these flags did nothing: `task release --no-merge` (created the release PR and merged it anyway — observed merging before the PR's checks finished), `task del --no-remote-delete` / `--no-close-mr` (deleted the remote branch / closed the open PR anyway) and `task sync --no-remote-delete` (deleted the remote branch anyway). They now take effect, in dry-run plans too (TASK-025).
+- **`task add --dry-run` crashed** with `ENOENT` after printing its plan: the branch step read the TASK file the dry run never wrote. The plan now also names the real branch (`task/<NNN>-<slug>`; it omitted the TASK number) (TASK-026).
 
 ## 3.1.2 - 2026-10-16
 
