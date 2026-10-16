@@ -4,7 +4,7 @@
 
 ## Stage
 
-- **Package:** `@goodtek/vibeops` **3.1.6** (`task release` reuses an open release PR; unreadable Git Context stops `task ship` / `task add`).
+- **Package:** `@goodtek/vibeops` **3.1.7** (PR body against the fetched base; `ship --new-cycle` ships committed work and keeps `-m`).
 - **CLI lifecycle:** `init` · `task add` · `task del` · **`task ship` (state-aware)** · `task merge` · `task sync` · `pull` · `task release` · **`status` (Now/Next)** · `llm`.
 - **Breaking (2.5.0):** `task reship` removed — use `task ship` / `--new-cycle`.
 - **2.5.1:** `task add` preflight + sync diagnosis + incomplete resume.
@@ -12,8 +12,8 @@
 - **3.0.0 (breaking):** merge gate — CheckRun/StatusContext classification fix, fail-closed (incl. no checks unless `merge.allowNoChecks`), strict `merge` config, SHA-pinned merges; requires gh ≥ 2.13.0 (TASK-020).
 - **3.1.1:** `task ship` commits staged / unstaged deletions and renames (`porcelain=v1 -z`, `git add -A` only for unstaged paths) (TASK-022).
 - **3.1.2:** merge gate waits for the PR's own GitHub Actions runs (expected `pull_request` workflows + all runs for the head SHA), head re-read before merge (TASK-024); CI on PRs + `main` (lint, typecheck, build, tests, smoke, gitleaks), npm Trusted Publishing workflow, OSS hygiene (TASK-023).
-- **Unreleased:** `ship --new-cycle` ships committed-but-unmerged work and keeps `-m` (TASK-032).
-- **Unreleased:** PR body lists only this TASK's changes (against the fetched `<remote>/<base>`) (TASK-031).
+- **3.1.7:** `ship --new-cycle` ships committed-but-unmerged work and keeps `-m` (TASK-032).
+- **3.1.7:** PR body lists only this TASK's changes (against the fetched `<remote>/<base>`) (TASK-031).
 - **3.1.6:** `task release` reuses an open release PR; unreadable Git Context stops `task ship` / `task add` with the line named (TASK-030).
 - **3.1.5:** `task merge` refuses a stale base (head must contain `<remote>/<base>`, D-008); `ship -m` keeps body and trailers (TASK-029).
 - **3.1.5:** Dependabot fixes — `js-yaml` 3.15.2, dev `tsx` / `esbuild` 0.28.2; `sprintf-js` advisory unfixable upstream and unreachable (TASK-027).
@@ -35,7 +35,7 @@
 
 ## Next
 
-- Consumers: `npm i -g @goodtek/vibeops@3.1.6` (or `volta install @goodtek/vibeops@3.1.6`). Repos without CI: `"merge": {"allowNoChecks": true}`.
+- Consumers: `npm i -g @goodtek/vibeops@3.1.7` (or `volta install @goodtek/vibeops@3.1.7`). Repos without CI: `"merge": {"allowNoChecks": true}`.
 - Maintainers: release = release PR → merge after its CI → tag `vX.Y.Z` on `main` → `publish.yml` publishes via npm Trusted Publishing (no token; 09-deployment.md). Manual `pnpm publish:npm` is a fallback only.
 
 ## Progress rules
