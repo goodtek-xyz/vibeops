@@ -52,6 +52,22 @@ test("taskScopedCommitMessage always carries the TASK id as scope", () => {
   assert.equal(taskScopedCommitMessage("TASK-009", "   "), "feat(task-009): TASK-009");
 });
 
+test("taskScopedCommitMessage scopes only the subject and keeps body + trailers", () => {
+  // Observed on 3.1.x: `ship -m` joined every line, so the trailer landed in the subject.
+  assert.equal(
+    taskScopedCommitMessage(
+      "TASK-001",
+      "fix: handle null\n\nWhy it broke.\n\nCo-Authored-By: A <a@example.invalid>\n",
+    ),
+    "fix(task-001): handle null\n\nWhy it broke.\n\nCo-Authored-By: A <a@example.invalid>",
+  );
+  // body directly under the subject gets the blank separator line git expects
+  assert.equal(
+    taskScopedCommitMessage("TASK-001", "handle null\r\nCo-Authored-By: A <a@example.invalid>"),
+    "feat(task-001): handle null\n\nCo-Authored-By: A <a@example.invalid>",
+  );
+});
+
 test("prNumberFromUrl extracts the PR/MR number", () => {
   assert.equal(prNumberFromUrl("https://github.com/o/r/pull/42"), "42");
   assert.equal(prNumberFromUrl("https://gitlab.com/o/r/-/merge_requests/7"), "7");

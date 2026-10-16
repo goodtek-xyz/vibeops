@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { listWorkingTreeRelPaths, parsePorcelainZ } from "../dist/lib/git.js";
-import { commitDirtyWorkingTree } from "../dist/lib/task-git-commit.js";
+import { commitDirtyWorkingTree, taskScopedCommitMessage } from "../dist/lib/task-git-commit.js";
 
 const GIT_ENV = {
   ...process.env,
@@ -155,4 +155,23 @@ test("parsePorcelainZ reads -z records, including rename sources and names conta
       ["??", "dir/", null, false, false, true],
     ],
   );
+});
+
+test("ship -m with body and trailer: subject stays one line, trailer is a git trailer", async () => {
+  const dir = repoWith({ "a.txt": "a\n" });
+  try {
+    writeFileSync(join(dir, "a.txt"), "a2\n");
+    const msg = taskScopedCommitMessage(
+      "TASK-029",
+      "fix: keep trailers\n\nCo-Authored-By: A <a@example.invalid>",
+    );
+    assert.equal(await commitDirtyWorkingTree(dir, msg, false), true);
+    assert.equal(git(dir, "log", "-1", "--format=%s").trim(), "fix(task-029): keep trailers");
+    assert.equal(
+      git(dir, "log", "-1", "--format=%(trailers:key=Co-Authored-By,valueonly)").trim(),
+      "A <a@example.invalid>",
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

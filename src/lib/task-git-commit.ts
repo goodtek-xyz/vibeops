@@ -28,6 +28,8 @@ const CONVENTIONAL_COMMIT_RE = /^([a-z]+)(?:\(([^)]*)\))?(!)?:\s*(.+)$/is;
  * - `"fix(login): handle null"`     → `fix(task-001): handle null` (scope rewritten)
  * - `"handle null"`                 → `feat(task-001): handle null` (defaultType)
  * - already-scoped correct messages are returned unchanged.
+ * - only the subject (first line) is scoped; a body and trailers after it
+ *   (e.g. `Co-Authored-By:`) are kept line by line.
  */
 export function taskScopedCommitMessage(
   taskId: string,
@@ -35,17 +37,20 @@ export function taskScopedCommitMessage(
   defaultType = "feat",
 ): string {
   const scope = taskId.toLowerCase();
-  const msg = rawMessage.trim().replace(/\s+/g, " ");
-  if (msg.length === 0) return `${defaultType}(${scope}): ${taskId}`;
+  const lines = rawMessage.replace(/\r\n?/g, "\n").trim().split("\n");
+  const msg = (lines[0] ?? "").replace(/\s+/g, " ").trim();
+  const body = lines.slice(1).map((l) => l.trimEnd()).join("\n").replace(/^\n+/, "");
+  const withBody = (subject: string): string => (body.length > 0 ? `${subject}\n\n${body}` : subject);
+  if (msg.length === 0) return withBody(`${defaultType}(${scope}): ${taskId}`);
 
   const m = CONVENTIONAL_COMMIT_RE.exec(msg);
   if (m) {
     const type = m[1]!.toLowerCase();
     const bang = m[3] ?? "";
     const subject = m[4]!.trim();
-    return `${type}(${scope})${bang}: ${subject}`;
+    return withBody(`${type}(${scope})${bang}: ${subject}`);
   }
-  return `${defaultType}(${scope}): ${msg}`;
+  return withBody(`${defaultType}(${scope}): ${msg}`);
 }
 
 /**
