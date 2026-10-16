@@ -96,7 +96,7 @@ cp .env.example .env
 pnpm publish:npm
 ```
 
-If the token does not bypass 2FA: `NPM_OTP=123456 pnpm publish:npm`.
+If the token does not bypass 2FA, pass the current one-time code in `NPM_OTP` (e.g. `NPM_OTP=<6-digit code> pnpm publish:npm`).
 
 When a release was published by hand, still push its `vX.Y.Z` tag on `main` for the history; the triggered workflow then fails at the publish step as described above.
 
