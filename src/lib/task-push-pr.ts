@@ -12,6 +12,7 @@ import {
   readGitInfo,
 } from "./git.js";
 import { dim, log } from "./logger.js";
+import { fetchBaseBranch } from "./merge-base-freshness.js";
 import {
   createMergeRequest,
   findMergeRequestByBranches,
@@ -47,9 +48,26 @@ export interface FinishTaskPullRequestResult {
   readonly pushed?: boolean;
 }
 
-async function buildDiffSummary(cwd: string, gitCtx: GitContext): Promise<string> {
-  const files = await gitDiffNameOnly(cwd, `${gitCtx.baseCommit}..HEAD`);
-  const commits = await gitLogOneline(cwd, `${gitCtx.baseCommit}..HEAD`);
+/**
+ * What the MR/PR changes is measured from the freshly fetched `<remote>/<base>`, not the
+ * TASK's Base Commit: after the base is merged into the task branch (required by the
+ * stale-base check), `<Base Commit>..HEAD` also contains other TASKs' commits. Falls back
+ * to the Base Commit only when the base branch cannot be fetched.
+ */
+async function resolveDiffBase(cwd: string, remote: string, gitCtx: GitContext): Promise<string> {
+  try {
+    return await fetchBaseBranch(cwd, remote, gitCtx.baseBranch);
+  } catch {
+    log.warn(
+      `Could not fetch ${remote}/${gitCtx.baseBranch} — listing changes since the TASK's Base Commit.`,
+    );
+    return gitCtx.baseCommit;
+  }
+}
+
+async function buildDiffSummary(cwd: string, base: string): Promise<string> {
+  const files = await gitDiffNameOnly(cwd, `${base}...HEAD`);
+  const commits = await gitLogOneline(cwd, `${base}..HEAD`, { noMerges: true });
   const lines: string[] = [];
   if (commits.length > 0) {
     lines.push("Commits:");
@@ -111,7 +129,8 @@ export async function finishTaskWithPullRequest(
     );
   }
 
-  const ahead = await gitCommitsAhead(opts.cwd, gitCtx.baseCommit, "HEAD");
+  const diffBase = await resolveDiffBase(opts.cwd, gitCfg.remote, gitCtx);
+  const ahead = await gitCommitsAhead(opts.cwd, diffBase, "HEAD");
   if (ahead === 0) {
     log.warn("No commits ahead of base — pushing branch anyway.");
   }
@@ -170,7 +189,7 @@ export async function finishTaskWithPullRequest(
   const preference: LlmProviderPreference = config?.llm?.provider ?? "auto";
   const meta = await readTaskFile(opts.taskFile);
   const taskBody = await readText(opts.taskFile);
-  const diffSummary = await buildDiffSummary(opts.cwd, gitCtx);
+  const diffSummary = await buildDiffSummary(opts.cwd, diffBase);
 
   const prInput = {
     taskId: meta.id,

@@ -627,8 +627,13 @@ export interface OnelineEntry {
   message: string;
 }
 
-export async function gitLogOneline(cwd: string, range?: string): Promise<OnelineEntry[]> {
+export async function gitLogOneline(
+  cwd: string,
+  range?: string,
+  options: { readonly noMerges?: boolean } = {},
+): Promise<OnelineEntry[]> {
   const args = ["log", "--oneline", "--no-decorate"];
+  if (options.noMerges === true) args.push("--no-merges");
   if (typeof range === "string" && range.length > 0) args.push(range);
   const res = await tryGit(cwd, args);
   if (!res) return [];

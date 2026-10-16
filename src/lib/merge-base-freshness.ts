@@ -19,11 +19,22 @@ export type BaseInHeadResult =
  * into the base since; a squash merge then lands that revert. Fetches the base
  * branch and the head commit first; any fetch / read failure fails closed.
  */
+/** Fetch `<remote>/<baseBranch>` into its remote-tracking ref and return that ref. Throws on failure. */
+export async function fetchBaseBranch(
+  cwd: string,
+  remote: string,
+  baseBranch: string,
+): Promise<string> {
+  const baseRef = `refs/remotes/${remote}/${baseBranch}`;
+  await runGit(cwd, ["fetch", "--no-tags", remote, `+refs/heads/${baseBranch}:${baseRef}`]);
+  return baseRef;
+}
+
 export async function checkBaseInHead(opts: BaseInHeadOptions): Promise<BaseInHeadResult> {
   const { cwd, remote, baseBranch, headSha } = opts;
   const baseRef = `refs/remotes/${remote}/${baseBranch}`;
   try {
-    await runGit(cwd, ["fetch", "--no-tags", remote, `+refs/heads/${baseBranch}:${baseRef}`]);
+    await fetchBaseBranch(cwd, remote, baseBranch);
     if (!(await commitExists(cwd, headSha))) {
       await runGit(cwd, ["fetch", "--no-tags", remote, headSha]);
     }

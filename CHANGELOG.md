@@ -4,6 +4,10 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- **PR body listed other TASKs' changes** after the base branch was merged into the task branch: the Commits / Files lists came from the TASK's Base Commit. They are now computed against the freshly fetched `<remote>/<base>` (commits without merges, files from the merge base); the Base Commit is only a fallback when the fetch fails (TASK-031).
+
 ## 3.1.6 - 2026-10-17
 
 ### Fixed
