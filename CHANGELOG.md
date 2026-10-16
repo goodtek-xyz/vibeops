@@ -4,6 +4,8 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 3.1.7 - 2026-10-17
+
 ### Fixed
 
 - **`task ship --new-cycle` missed work already committed on the task branch** ("Nothing to do — merged with no new changes"). With no uncommitted files it now compares the branch with the fetched `<remote>/<base>` by content (earlier cycles were squash-merged, so commit counts would mislead) and opens the new PR for what is not merged yet (TASK-032).
