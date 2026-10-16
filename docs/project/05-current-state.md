@@ -23,7 +23,7 @@
 |------|------|--------|
 | Integration sync UX | `src/lib/git-integration-sync.ts`, `task-add.ts`, `git.ts` | Preflight; governance-only dirty OK |
 | CI | `.github/workflows/ci.yml` | GitHub-hosted only; required by `.vibeops.json` `merge.requiredChecks` |
-| npm publish | `.github/workflows/publish.yml`; manual `scripts/npm-publish.sh` | Trusted Publishing (OIDC) once the owner registers `publish.yml`; until then Infisical / `.env` → temp npmrc |
+| npm publish | `.github/workflows/publish.yml`; fallback `scripts/npm-publish.sh` | Trusted Publishing (OIDC, provenance), active since 3.1.4; fallback Infisical / `.env` → temp npmrc |
 | Init remote UX | `src/lib/git-remote.ts`, `src/lib/git-host-cli.ts` | Ask host → create/connect |
 | Status Now/Next | `src/commands/status.ts` | Human layout |
 | Worktrees / lock / TASK ids | `src/lib/git-worktree.ts`, `src/lib/task-lock.ts`, `src/lib/task-id-allocation.ts` | D-006 |
@@ -32,7 +32,7 @@
 ## Next
 
 - Consumers: `npm i -g @goodtek/vibeops@3.1.4` (or `volta install @goodtek/vibeops@3.1.4`). Repos without CI: `"merge": {"allowNoChecks": true}`.
-- Maintainers: register `publish.yml` as npm trusted publisher (09-deployment.md), then release by tag `vX.Y.Z`; until then `pnpm publish:npm`.
+- Maintainers: release = release PR → merge after its CI → tag `vX.Y.Z` on `main` → `publish.yml` publishes via npm Trusted Publishing (no token; 09-deployment.md). Manual `pnpm publish:npm` is a fallback only.
 
 ## Progress rules
 

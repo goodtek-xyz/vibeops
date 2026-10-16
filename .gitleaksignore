@@ -1,0 +1,3 @@
+# Reviewed false positives (gitleaks fingerprints: <commit>:<file>:<rule>:<line>).
+# Example OTP value in the manual-publish docs, replaced by a placeholder in the next commit (TASK-028).
+5351599b86210f34db3a4719e9977f7c0cd84136:docs/project/09-deployment.md:generic-api-key:99
