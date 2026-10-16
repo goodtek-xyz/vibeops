@@ -4,6 +4,8 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 3.1.6 - 2026-10-17
+
 ### Fixed
 
 - **`task release` failed when the release PR was already open.** It now reuses the open integration → production PR; a failing lookup refuses. The dry-run now says the merge waits for the PR's own CI runs (it already did since 3.1.2) and shows `requiredChecks` as an extra by-name list (TASK-030).
