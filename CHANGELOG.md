@@ -4,6 +4,8 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 3.1.5 - 2026-10-16
+
 ### Fixed
 
 - **`task merge` merged stale branches.** It now refuses unless the head commit the gate approved contains the current `<remote>/<base>` (`git merge-base --is-ancestor` after fetching both); the error says how many commits behind and how to update. Observed in a consumer repo: a branch rebuilt with `git reset --soft` on a stale `origin/develop` was squash-merged after `develop` had moved and silently reverted other TASKs' work. Fetch errors refuse. `task release` is unchanged (D-008, TASK-029).
