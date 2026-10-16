@@ -930,3 +930,113 @@ test("errorBackoffMs: exponential with jitter, capped at 60 s", () => {
     assert.ok(d >= 10_000 && d <= Math.min(60_000, 10_000 * 2 ** n), `${n}: ${d}`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Stale base: the head the gate approved must contain <remote>/<base>
+// (observed: a branch rebuilt with `git reset --soft <stale origin/develop>` was
+// squash-merged after develop had moved and silently reverted other TASKs' work).
+// ---------------------------------------------------------------------------
+
+const GIT_ENV = {
+  ...process.env,
+  GIT_AUTHOR_NAME: "t",
+  GIT_AUTHOR_EMAIL: "t@example.invalid",
+  GIT_COMMITTER_NAME: "t",
+  GIT_COMMITTER_EMAIL: "t@example.invalid",
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_CONFIG_NOSYSTEM: "1",
+};
+const g = (cwd, ...args) => execFileSync("git", args, { cwd, env: GIT_ENV, encoding: "utf8" }).trim();
+
+function commitFile(cwd, name, content) {
+  writeFileSync(join(cwd, name), content);
+  g(cwd, "add", "-A");
+  g(cwd, "commit", "-q", "-m", `edit ${name}`);
+  return g(cwd, "rev-parse", "HEAD");
+}
+
+/** Bare origin with `main`; `work` = clone whose origin/main is fetched at the start. */
+function gitHost() {
+  const root = mkdtempSync(join(tmpdir(), "vibeops-stale-"));
+  const origin = join(root, "origin.git");
+  g(root, "init", "-q", "--bare", "-b", "main", origin);
+  const other = join(root, "other");
+  g(root, "clone", "-q", origin, other);
+  g(other, "switch", "-q", "-c", "main");
+  commitFile(other, "a.txt", "a\n");
+  g(other, "push", "-q", "origin", "main");
+  const work = join(root, "work");
+  g(root, "clone", "-q", origin, work);
+  return { origin, other, work };
+}
+
+/** Another TASK lands on main (moves origin/main; `work` does not fetch). */
+function landOnMain(other, name) {
+  g(other, "switch", "-q", "main");
+  g(other, "pull", "-q", "--ff-only", "origin", "main");
+  commitFile(other, name, `${name}\n`);
+  g(other, "push", "-q", "origin", "main");
+}
+
+const STALE = { remote: "origin", baseBranch: "main" };
+const green = (headRefOid) => ghPr([checkRun("build", "COMPLETED", "SUCCESS")], { headRefOid });
+
+test("stale base: head containing origin/main merges (head fetched by sha from another clone)", async () => {
+  const { other, work } = gitHost();
+  g(other, "switch", "-q", "-c", "task/1");
+  const head = commitFile(other, "t.txt", "t\n");
+  g(other, "push", "-q", "origin", "task/1"); // `work` has never seen this commit
+  queueViews([green(head)]);
+  await merge({ cwd: work, requireBaseInHead: STALE });
+  assert.deepEqual(mergeCalls(), [["pr", "merge", "7", "--squash", "--match-head-commit", head]]);
+});
+
+test("stale base: base moved after the branch started → refuses, no merge call", async () => {
+  const { other, work } = gitHost();
+  g(work, "switch", "-q", "-c", "task/2");
+  const head = commitFile(work, "t.txt", "t\n");
+  g(work, "push", "-q", "origin", "task/2");
+  landOnMain(other, "b.txt");
+  queueViews([green(head)]);
+  await assert.rejects(merge({ cwd: work, requireBaseInHead: STALE }), (e) => {
+    assert.ok(e instanceof MergeGateError);
+    assert.match(e.message, /stale base: head \w{7} does not contain origin\/main \(1 commit\(s\) behind\)/);
+    return true;
+  });
+  assert.deepEqual(mergeCalls(), []);
+});
+
+test("stale base: branch rebuilt with reset --soft on a stale local origin/main is refused", async () => {
+  const { other, work } = gitHost();
+  g(work, "switch", "-q", "-c", "task/3");
+  commitFile(work, "t.txt", "t1\n");
+  commitFile(work, "t.txt", "t2\n");
+  landOnMain(other, "b.txt"); // work's origin/main is now stale (no fetch)
+  g(work, "reset", "-q", "--soft", "origin/main");
+  g(work, "commit", "-q", "-m", "squashed");
+  const head = g(work, "rev-parse", "HEAD");
+  g(work, "push", "-q", "-f", "origin", "task/3");
+  queueViews([green(head)]);
+  await assert.rejects(merge({ cwd: work, requireBaseInHead: STALE }), /stale base/);
+  assert.deepEqual(mergeCalls(), []);
+});
+
+test("stale base: unreadable remote fails closed (never merges unchecked)", async () => {
+  const { work } = gitHost();
+  const head = g(work, "rev-parse", "HEAD");
+  g(work, "remote", "set-url", "origin", join(work, "missing.git"));
+  queueViews([green(head)]);
+  await assert.rejects(merge({ cwd: work, requireBaseInHead: STALE }), /could not fetch origin\/main/);
+  assert.deepEqual(mergeCalls(), []);
+});
+
+test("stale base: without requireBaseInHead (task release) the check is not applied", async () => {
+  const { other, work } = gitHost();
+  g(work, "switch", "-q", "-c", "task/4");
+  const head = commitFile(work, "t.txt", "t\n");
+  g(work, "push", "-q", "origin", "task/4");
+  landOnMain(other, "b.txt");
+  queueViews([green(head)]);
+  await merge({ cwd: work });
+  assert.equal(mergeCalls().length, 1);
+});

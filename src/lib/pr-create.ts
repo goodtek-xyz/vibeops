@@ -26,6 +26,7 @@ import {
   type ExpectedWorkflow,
 } from "./github-actions-gate.js";
 import { dim, log } from "./logger.js";
+import { checkBaseInHead } from "./merge-base-freshness.js";
 import { MERGE_GATE_DEFAULTS, mergeGateTiming } from "./merge-config.js";
 import type { GitHost } from "../types/config.js";
 
@@ -811,6 +812,11 @@ export interface MergeMergeRequestOptions {
     MergeGateOptions,
     "timeoutMs" | "intervalMs" | "emptyRollupGraceMs" | "allowNoChecks"
   >;
+  /**
+   * Refuse unless the head commit the gate approved contains `<remote>/<baseBranch>`
+   * (`task merge`: a stale head can silently revert work merged since).
+   */
+  readonly requireBaseInHead?: { readonly remote: string; readonly baseBranch: string };
 }
 
 export interface CloseMergeRequestOptions {
@@ -854,6 +860,10 @@ export async function mergeMergeRequest(opts: MergeMergeRequestOptions): Promise
         ? ` + required: ${opts.requiredChecks.join(", ")}`
         : "";
     log.info(`would check ${label} status checks (all green${required}) before merging`);
+    if (opts.requireBaseInHead !== undefined) {
+      const { remote, baseBranch } = opts.requireBaseInHead;
+      log.info(`would refuse unless the head commit contains ${remote}/${baseBranch} (stale base)`);
+    }
     if (opts.host === "gitlab") {
       log.info(
         `would ${label} merge ${ref} (glab ${gitLabMergeArgs(ref, method, "<head sha>").join(" ")})`,
@@ -875,6 +885,15 @@ export async function mergeMergeRequest(opts: MergeMergeRequestOptions): Promise
     if (gate.details.headSha === null || gate.details.headSha.trim().length === 0) {
       // Strict read already guarantees this; never merge unpinned.
       throw new MergeGateError(label, ["host did not report the head commit SHA"]);
+    }
+    if (opts.requireBaseInHead !== undefined) {
+      const fresh = await checkBaseInHead({
+        cwd: opts.cwd,
+        remote: opts.requireBaseInHead.remote,
+        baseBranch: gate.details.baseBranch ?? opts.requireBaseInHead.baseBranch,
+        headSha: gate.details.headSha,
+      });
+      if (!fresh.ok) throw new MergeGateError(label, [fresh.problem]);
     }
     return gate.details;
   };

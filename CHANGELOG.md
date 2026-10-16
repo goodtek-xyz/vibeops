@@ -4,6 +4,11 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- **`task merge` merged stale branches.** It now refuses unless the head commit the gate approved contains the current `<remote>/<base>` (`git merge-base --is-ancestor` after fetching both); the error says how many commits behind and how to update. Observed in a consumer repo: a branch rebuilt with `git reset --soft` on a stale `origin/develop` was squash-merged after `develop` had moved and silently reverted other TASKs' work. Fetch errors refuse. `task release` is unchanged (D-008, TASK-029).
+- **`task ship -m` joined multi-line messages** into one line, so a `Co-Authored-By:` trailer ended up in the subject. Only the subject is TASK-scoped now; the body and trailers are kept (TASK-029).
+
 ### Security
 
 - `js-yaml` 3.14.2 → 3.15.2 (via `gray-matter`; GHSA-52cp-r559-cp3m, GHSA-5p4m-2wfm-xmqj, GHSA-2883-xcg3-v3hh, GHSA-h67p-54hq-rp68). Dev: `tsx` ^4.23.15 → `esbuild` 0.28.2 (GHSA-g7r4-m6w7-qqqr). `sprintf-js` (GHSA-hp3w-g68c-fv3c) has no fixed release; it is only used by `js-yaml`'s command-line tool, which vibeops does not run (TASK-027).

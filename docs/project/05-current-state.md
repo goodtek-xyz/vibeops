@@ -12,6 +12,7 @@
 - **3.0.0 (breaking):** merge gate — CheckRun/StatusContext classification fix, fail-closed (incl. no checks unless `merge.allowNoChecks`), strict `merge` config, SHA-pinned merges; requires gh ≥ 2.13.0 (TASK-020).
 - **3.1.1:** `task ship` commits staged / unstaged deletions and renames (`porcelain=v1 -z`, `git add -A` only for unstaged paths) (TASK-022).
 - **3.1.2:** merge gate waits for the PR's own GitHub Actions runs (expected `pull_request` workflows + all runs for the head SHA), head re-read before merge (TASK-024); CI on PRs + `main` (lint, typecheck, build, tests, smoke, gitleaks), npm Trusted Publishing workflow, OSS hygiene (TASK-023).
+- **Unreleased:** `task merge` refuses a stale base (head must contain `<remote>/<base>`, D-008); `ship -m` keeps body and trailers (TASK-029).
 - **Unreleased:** Dependabot fixes — `js-yaml` 3.15.2, dev `tsx` / `esbuild` 0.28.2; `sprintf-js` advisory unfixable upstream and unreachable (TASK-027).
 - **3.1.4:** no CLI changes; first release published by `publish.yml` (Trusted Publishing, provenance).
 - **3.1.3:** `--no-merge` (`task release`), `--no-remote-delete` / `--no-close-mr` (`task del`, `task sync`) take effect; they were ignored before (TASK-025). `task add --dry-run` no longer crashes (ENOENT) and names the real task branch (TASK-026).
@@ -27,7 +28,7 @@
 | Init remote UX | `src/lib/git-remote.ts`, `src/lib/git-host-cli.ts` | Ask host → create/connect |
 | Status Now/Next | `src/commands/status.ts` | Human layout |
 | Worktrees / lock / TASK ids | `src/lib/git-worktree.ts`, `src/lib/task-lock.ts`, `src/lib/task-id-allocation.ts` | D-006 |
-| Merge gate | `src/lib/check-rollup.ts`, `src/lib/github-actions-gate.ts`, `src/lib/merge-config.ts`, `src/lib/pr-create.ts` (`waitForMergeGate`) | Fail closed; rollup + GitHub Actions runs (D-007); `.vibeops.json` `merge` block |
+| Merge gate | `src/lib/check-rollup.ts`, `src/lib/github-actions-gate.ts`, `src/lib/merge-base-freshness.ts`, `src/lib/merge-config.ts`, `src/lib/pr-create.ts` (`waitForMergeGate`) | Fail closed; rollup + GitHub Actions runs (D-007); head must contain base (D-008); `.vibeops.json` `merge` block |
 
 ## Next
 

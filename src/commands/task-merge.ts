@@ -37,6 +37,9 @@ function resolveMergeMethod(opts: TaskMergeCommandOptions): MergeRequestMergeMet
 
 function mergeFailureHint(error: unknown): string {
   if (error instanceof MergeGateError) {
+    if (error.problems.some((p) => p.startsWith("stale base:"))) {
+      return "Not merged. Bring the task branch up to date with its base (see above), push, wait for CI, then rerun `vibeops task merge`.";
+    }
     return "Not merged. Fix the failing checks (re-run `vibeops task ship` to push a fix and re-run CI), then rerun `vibeops task merge`.";
   }
   return "Merge in the host UI if branch protection blocks CLI merge.";
@@ -141,6 +144,7 @@ export async function taskMergeCommand(
       method,
       requiredChecks,
       gate,
+      requireBaseInHead: { remote: gitCfg.remote, baseBranch: ctx.baseBranch },
       dryRun: true,
     });
     log.blank();
@@ -175,6 +179,7 @@ export async function taskMergeCommand(
         waitForCi: true,
         requiredChecks,
         gate,
+        requireBaseInHead: { remote: gitCfg.remote, baseBranch: ctx.baseBranch },
       });
       const verified = await assertMergeRequestMerged({
         cwd,
@@ -210,6 +215,7 @@ export async function taskMergeCommand(
         waitForCi: true,
         requiredChecks,
         gate,
+        requireBaseInHead: { remote: gitCfg.remote, baseBranch: ctx.baseBranch },
       });
       const verified = await assertMergeRequestMerged({
         cwd,
