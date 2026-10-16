@@ -26,7 +26,12 @@ import {
   type TaskLockConfig,
 } from "../lib/task-lock.js";
 import { isIncompleteTaskStart, startTaskBranch } from "../lib/task-start.js";
-import { branchNameForTaskFile, loadActionableTasks, readGitContext } from "../lib/task.js";
+import {
+  branchNameForTaskFile,
+  damagedGitContext,
+  loadActionableTasks,
+  readGitContext,
+} from "../lib/task.js";
 import type { VibeopsGitConfig } from "../types/config.js";
 
 export interface TaskAddCommandOptions {
@@ -142,6 +147,17 @@ export async function taskAddCommand(opts: TaskAddCommandOptions = {}): Promise<
 
     // Resume: In Progress file exists but task branch / Git Context was never finished.
     if (blocking !== null && gitCfg !== null) {
+      // A damaged Git Context is not an unfinished add: resuming would write a second section.
+      const damaged = await damagedGitContext(blocking.filePath);
+      if (damaged !== null) {
+        log.error(
+          `${bold(blocking.id)} is In Progress but its Git Context cannot be read: ${damaged}.`,
+        );
+        log.info(`  ${dim("file")}   ${relPath(root, blocking.filePath)}`);
+        log.info(dim("No TASK was created. Fix the TASK file (then ship it), and rerun task add."));
+        process.exitCode = 1;
+        return "done";
+      }
       const incomplete = await isIncompleteTaskStart(root, blocking.filePath);
       if (incomplete) {
         log.warn(

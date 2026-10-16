@@ -4,6 +4,11 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- **`task release` failed when the release PR was already open.** It now reuses the open integration → production PR; a failing lookup refuses. The dry-run now says the merge waits for the PR's own CI runs (it already did since 3.1.2) and shows `requiredChecks` as an extra by-name list (TASK-030).
+- **An unreadable Git Context was skipped quietly.** `task ship` printed "push/MR skipped" and exited 0; it now exits 1 before committing or pushing and names the problem (e.g. ``line 160 is `## ## Git Context` ``). `task add` no longer "resumes" an In Progress TASK whose Git Context is damaged — that wrote a second section and blocked new TASKs in every worktree (TASK-030).
+
 ## 3.1.5 - 2026-10-16
 
 ### Fixed

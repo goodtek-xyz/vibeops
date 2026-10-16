@@ -807,3 +807,54 @@ test("stale takeover waits for a held breaker within lock.waitSeconds and logs o
   assert.equal(lines.filter((l) => l.includes("Waiting for VibeOps lock breaker")).length, 1);
   assert.ok(existsSync(lockPath), "stale lock not removed without the breaker");
 });
+
+// ---------------------------------------------------------------------------
+// Damaged Git Context (observed: an edit left `## ## Git Context`; ship skipped the
+// push quietly, and every worktree's task add then "resumed" that TASK).
+// ---------------------------------------------------------------------------
+
+function damageGitContextHeading(cwd) {
+  const name = taskFiles(cwd).find((n) => !n.startsWith("TASK-001-"));
+  const file = join(cwd, "docs", "tasks", name);
+  const text = readFileSync(file, "utf8");
+  writeFileSync(file, text.replace("## Git Context", "## ## Git Context"));
+  const line = text.split("\n").indexOf("## Git Context") + 1;
+  return { file, name, line };
+}
+
+test("task ship stops on a malformed Git Context heading: names the line, commits and pushes nothing", () => {
+  const { b } = setupTwoWorktrees();
+  assert.equal(vibeops(b, "task", "add", "--non-interactive", "--idea", "Broken heading").code, 0);
+  const branch = currentBranch(b);
+  const { line, name } = damageGitContextHeading(b);
+  const tasks = join(b, "docs", "tasks", name);
+  const text = readFileSync(tasks, "utf8")
+    .replace(/## Result\n\n[^#]*/, "## Result\n\ndone\n\n")
+    .replace(/## Test Result\n\n[^#]*/, "## Test Result\n\nok\n");
+  writeFileSync(tasks, text);
+  const headBefore = git(b, "rev-parse", "HEAD");
+
+  for (const extra of [["--dry-run"], []]) {
+    const r = vibeops(b, "task", "ship", "-m", "feat: x", "--no-pr", "--non-interactive", ...extra);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, new RegExp(`line ${line} is \`## ## Git Context\`, not \`## Git Context\``));
+    assert.match(r.out, /Nothing was committed or pushed/);
+  }
+  assert.equal(git(b, "rev-parse", "HEAD"), headBefore, "no commit");
+  assert.equal(git(b, "ls-remote", "--heads", "origin", branch), "", "not pushed");
+});
+
+test("task add refuses to resume a TASK whose Git Context is damaged (no second section, no new TASK)", () => {
+  const { b } = setupTwoWorktrees();
+  assert.equal(vibeops(b, "task", "add", "--non-interactive", "--idea", "Broken heading").code, 0);
+  const { file, line } = damageGitContextHeading(b);
+  const before = taskFiles(b);
+
+  const r = vibeops(b, "task", "add", "--non-interactive", "--idea", "Next");
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /TASK-002\S* is In Progress but its Git Context cannot be read/);
+  assert.match(r.out, new RegExp(`line ${line} is \`## ## Git Context\``));
+  assert.doesNotMatch(r.out, /Resuming branch setup/);
+  assert.deepEqual(taskFiles(b), before, "no new TASK file");
+  assert.equal((readFileSync(file, "utf8").match(/Git Context/g) ?? []).length, 1, "no second section");
+});

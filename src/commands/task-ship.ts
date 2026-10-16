@@ -37,6 +37,7 @@ import { finishTaskWithPullRequest } from "../lib/task-push-pr.js";
 import {
   hasNonEmptySection,
   parseTaskFilename,
+  gitContextProblem,
   readGitContext,
   readTaskFile,
   updateInlineStatus,
@@ -198,6 +199,16 @@ async function runFirstShip(ctx: ShipContext): Promise<void> {
     return;
   }
 
+  const gitCtx = await readGitContext(taskFile);
+  if (gitCtx === null) {
+    log.error(
+      `No Git Context in ${relPath(cwd, taskFile)}: ${await gitContextProblem(taskFile)}. Nothing was committed or pushed.`,
+    );
+    log.info(dim("`vibeops task add` writes this section with the task branch; restore it, then rerun task ship."));
+    process.exitCode = 1;
+    return;
+  }
+
   if (dryRun) {
     log.info(bold("dry-run — would:"));
     if (!resultOk || !testOk) {
@@ -216,8 +227,7 @@ async function runFirstShip(ctx: ShipContext): Promise<void> {
     return;
   }
 
-  const gitCtx = await readGitContext(taskFile);
-  if (gitCtx !== null && !(await ensureOnTaskBranch(cwd, gitCtx, dryRun))) {
+  if (!(await ensureOnTaskBranch(cwd, gitCtx, dryRun))) {
     process.exitCode = 1;
     return;
   }
@@ -237,11 +247,6 @@ async function runFirstShip(ctx: ShipContext): Promise<void> {
       nonInteractive,
     });
     await commitDirtyWorkingTree(cwd, message, false);
-  }
-
-  if (gitCtx === null) {
-    log.info(dim("No Git Context — push/MR skipped."));
-    return;
   }
 
   await commitShipMetadata({ cwd, taskFile, taskId: parts.id, dryRun: false });
@@ -275,7 +280,7 @@ async function runUpdateOpenPr(ctx: ShipContext): Promise<void> {
 
   const gitCtx = await readGitContext(taskFile);
   if (gitCtx === null) {
-    log.error("No Git Context — cannot update the open PR.");
+    log.error(`No Git Context — cannot update the open PR: ${await gitContextProblem(taskFile)}.`);
     process.exitCode = 1;
     return;
   }
