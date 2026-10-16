@@ -405,6 +405,8 @@ async function runNewCycleFromShip(ctx: ShipContext): Promise<void> {
     recreateBranch: options.recreateBranch,
     skipLlm: options.skipLlm,
     allowOpenMr: options.allowOpenMr,
+    message: options.message,
+    nonInteractive: options.nonInteractive,
   });
 }
 
