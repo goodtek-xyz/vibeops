@@ -82,3 +82,18 @@ test("prRefLabel renders #<n> or a generic label", () => {
   assert.equal(prRefLabel("42"), "#42");
   assert.equal(prRefLabel(null), "the PR");
 });
+
+test("findMalformedSectionHeading finds near-miss headings only when no real one exists", async () => {
+  const { findMalformedSectionHeading } = await import("../dist/lib/task.js");
+  const body = (h) => `# T\n\n## Status\n\nIn Progress\n\n${h}\n\n- Base Branch: \`main\`\n`;
+  assert.deepEqual(findMalformedSectionHeading(body("## ## Git Context"), "Git Context"), {
+    line: 7,
+    text: "## ## Git Context",
+  });
+  assert.deepEqual(findMalformedSectionHeading(body("#Git Context"), "Git Context"), {
+    line: 7,
+    text: "#Git Context",
+  });
+  assert.equal(findMalformedSectionHeading(body("## Git Context"), "Git Context"), null);
+  assert.equal(findMalformedSectionHeading(body("## Result"), "Git Context"), null);
+});

@@ -274,6 +274,27 @@ function locateSection(text: string, title: string, level = 2): SectionBlock | n
   return null;
 }
 
+/**
+ * A line that looks like the `## <title>` heading but is not one (e.g. `## ## Git Context`
+ * or `#Git Context`), when no well-formed heading exists. 1-based line number, or `null`.
+ */
+export function findMalformedSectionHeading(
+  text: string,
+  title: string,
+  level = 2,
+): { readonly line: number; readonly text: string } | null {
+  if (locateSection(text, title, level) !== null) return null;
+  const want = title.toLowerCase();
+  const lines = text.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (!/^\s*#/.test(line)) continue;
+    const name = line.replace(/^[\s#]+/, "").replace(/[\s#]+$/, "").toLowerCase();
+    if (name === want) return { line: i + 1, text: line.trim() };
+  }
+  return null;
+}
+
 export function readSection(body: string, title: string): string {
   const block = locateSection(body, title);
   if (block === null) return "";
@@ -485,6 +506,31 @@ export async function upsertGitContext(
   if (updated !== raw) {
     await writeText(filePath, updated);
   }
+}
+
+/**
+ * The Git Context exists but cannot be read (malformed heading, or the section lacks
+ * its fields): the problem text, else `null` (readable, or no section at all).
+ */
+export async function damagedGitContext(filePath: string): Promise<string | null> {
+  if ((await readGitContext(filePath)) !== null) return null;
+  const raw = await readText(filePath);
+  const malformed = findMalformedSectionHeading(raw, "Git Context") !== null;
+  const unparsable = readSection(raw, "Git Context").length > 0;
+  return malformed || unparsable ? gitContextProblem(filePath) : null;
+}
+
+/** Why {@link readGitContext} returned `null` for this file — for error messages. */
+export async function gitContextProblem(filePath: string): Promise<string> {
+  const raw = await readText(filePath);
+  const bad = findMalformedSectionHeading(raw, "Git Context");
+  if (bad !== null) {
+    return `line ${bad.line} is \`${bad.text}\`, not \`## Git Context\` — fix that heading`;
+  }
+  if (readSection(raw, "Git Context").length === 0) {
+    return "the file has no `## Git Context` section";
+  }
+  return "`## Git Context` lacks Base Branch / Base Commit / Task Branch / Started At";
 }
 
 const GIT_CTX_RE = {

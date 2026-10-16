@@ -8,6 +8,7 @@ import { gitRemoteUrl } from "../lib/git.js";
 import { bold, dim, log } from "../lib/logger.js";
 import {
   createMergeRequest,
+  findMergeRequestByBranches,
   getMergeRequestState,
   MergeGateError,
   mergeMergeRequest,
@@ -92,10 +93,13 @@ export async function taskReleaseCommand(
   if (dryRun) {
     log.info(bold("dry-run — would:"));
     log.info(`  · ${label}: ${integrationBranch} → ${productionBranch}`);
+    log.info(`  · reuse the open ${label} ${integrationBranch} → ${productionBranch} if there is one`);
     if (options.noMerge !== true) {
-      log.info(`  · merge ${label} (${resolveReleaseMergeMethod(options)}) only when all checks are green`);
       log.info(
-        `  · required checks: ${requiredChecks.length > 0 ? requiredChecks.join(", ") : "(none configured)"}`,
+        `  · merge ${label} (${resolveReleaseMergeMethod(options)}) only when every check on its head commit is green — waits for the ${label}'s own CI runs`,
+      );
+      log.info(
+        `  · required checks (by name, in addition): ${requiredChecks.length > 0 ? requiredChecks.join(", ") : "none configured"}`,
       );
       if (mergeCfg.allowNoChecks) {
         log.info("  · allowNoChecks: true (a release PR with no checks would merge)");
@@ -115,22 +119,42 @@ export async function taskReleaseCommand(
   }
 
   let releaseUrl: string;
+  let open;
   try {
-    const { url } = await createMergeRequest({
+    open = await findMergeRequestByBranches({
       cwd,
       host,
-      baseBranch: productionBranch,
       headBranch: integrationBranch,
-      title,
-      body,
+      baseBranch: productionBranch,
+      state: "open",
     });
-    releaseUrl = url;
-    log.ok(`${label}: ${url}`);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    log.error(`Could not create release ${label}: ${msg}`);
+    const msg = e instanceof Error ? e.message.split("\n")[0] : String(e);
+    log.error(`Could not look up an open release ${label}: ${msg}`);
     process.exitCode = 1;
     return;
+  }
+  if (open !== null) {
+    releaseUrl = open.url;
+    log.ok(`${label} already open — reusing: ${releaseUrl}`);
+  } else {
+    try {
+      const { url } = await createMergeRequest({
+        cwd,
+        host,
+        baseBranch: productionBranch,
+        headBranch: integrationBranch,
+        title,
+        body,
+      });
+      releaseUrl = url;
+      log.ok(`${label}: ${url}`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      log.error(`Could not create release ${label}: ${msg}`);
+      process.exitCode = 1;
+      return;
+    }
   }
 
   if (options.noMerge === true) {

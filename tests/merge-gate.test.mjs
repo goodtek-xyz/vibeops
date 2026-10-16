@@ -678,7 +678,7 @@ test("cli: task release --dry-run shows releaseRequiredChecks", () => {
   const dir = projectWithMerge({ releaseRequiredChecks: ["release smoke", "lint*"] });
   const r = runCli(["task", "release", "--dry-run", "--cwd", dir]);
   assert.equal(r.code, 0, r.out);
-  assert.match(r.out, /required checks: release smoke, lint\*/);
+  assert.match(r.out, /required checks \(by name, in addition\): release smoke, lint\*/);
 });
 
 test("cli: invalid merge config makes task merge / release exit 1 naming the key", () => {
