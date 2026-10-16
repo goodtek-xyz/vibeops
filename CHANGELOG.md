@@ -4,6 +4,10 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+### Security
+
+- `js-yaml` 3.14.2 → 3.15.2 (via `gray-matter`; GHSA-52cp-r559-cp3m, GHSA-5p4m-2wfm-xmqj, GHSA-2883-xcg3-v3hh, GHSA-h67p-54hq-rp68). Dev: `tsx` ^4.23.15 → `esbuild` 0.28.2 (GHSA-g7r4-m6w7-qqqr). `sprintf-js` (GHSA-hp3w-g68c-fv3c) has no fixed release; it is only used by `js-yaml`'s command-line tool, which vibeops does not run (TASK-027).
+
 ## 3.1.4 - 2026-10-16
 
 ### Changed
