@@ -43,9 +43,11 @@ The release docs describe what is true now: npm Trusted Publishing through `publ
 - update: `docs/project/09-deployment.md` — release flow ends with tag → `publish.yml`; "Publish from GitHub Actions" is the current path (active since 3.1.4); trusted publisher table + setup notes; troubleshooting (E404 without a connection, already-published tag, `gh run rerun <id> --failed`, registry lag / `--prefer-online`); token publish moved under "Fallback"; environment table puts OIDC first; `INFISICAL_API_URL` example with `/api`
 - update: `docs/project/05-current-state.md` — npm publish row and maintainer "Next"
 - docs: `docs/logs/2026-10-16.md`
+- fix: CI gitleaks (`generic-api-key`) flagged the literal OTP example `NPM_OTP=<digits>` added in this TASK; replaced by a placeholder, and the reviewed false positive in the earlier branch commit is listed by fingerprint in new `.gitleaksignore` (no history rewrite / force-push)
 
 ## Test Result
 
 - `grep -rn "until then\|target path\|until Trusted Publishing is configured" docs/project README.md AGENTS.md` → no matches
 - `pnpm lint` OK, `pnpm smoke` OK (`pnpm test` part: 116 pass, 0 fail)
+- gitleaks 8.30.1 on the PR range (`main..HEAD`) and working tree: no leaks found
 - CI: on the PR
