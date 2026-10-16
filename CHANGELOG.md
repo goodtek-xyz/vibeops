@@ -4,6 +4,12 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 3.1.4 - 2026-10-16
+
+### Changed
+
+- No CLI changes. First release published from GitHub Actions (`publish.yml`, npm Trusted Publishing with provenance) instead of a maintainer machine.
+
 ## 3.1.3 - 2026-10-16
 
 ### Fixed
