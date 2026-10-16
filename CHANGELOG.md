@@ -4,6 +4,10 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- **`task add --dry-run` crashed** with `ENOENT` after printing its plan: the branch step read the TASK file the dry run never wrote. The plan now also names the real branch (`task/<NNN>-<slug>`; it omitted the TASK number) (TASK-026).
+
 ## 3.1.2 - 2026-10-16
 
 ### Fixed

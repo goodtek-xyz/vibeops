@@ -26,7 +26,7 @@ import {
   type TaskLockConfig,
 } from "../lib/task-lock.js";
 import { isIncompleteTaskStart, startTaskBranch } from "../lib/task-start.js";
-import { loadActionableTasks, readGitContext } from "../lib/task.js";
+import { branchNameForTaskFile, loadActionableTasks, readGitContext } from "../lib/task.js";
 import type { VibeopsGitConfig } from "../types/config.js";
 
 export interface TaskAddCommandOptions {
@@ -305,7 +305,7 @@ export async function taskAddCommand(opts: TaskAddCommandOptions = {}): Promise<
       log.info(`[dry-run] Would create ${bold(taskId)} → ${cyan(relFile)}`);
       log.info(
         dim(
-          `  branch task/${slugify(slug || title).replace(/^(\d+)-/, "$1-")} from ${gitCfg?.remote ?? "origin"}/${integration}`,
+          `  branch ${branchNameForTaskFile(filePath)} from ${gitCfg?.remote ?? "origin"}/${integration}`,
         ),
       );
       if (gitCfg) {

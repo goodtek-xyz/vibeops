@@ -59,7 +59,6 @@ export async function startTaskBranch(opts: StartTaskBranchOptions): Promise<boo
   const taskFile = opts.taskFile;
   const integrationBranch = opts.integrationBranch;
   const remote = opts.remote ?? "origin";
-  const meta = await readTaskFile(taskFile);
   const git = await readGitInfo(cwd);
 
   if (!git.isRepo) {
@@ -80,8 +79,9 @@ export async function startTaskBranch(opts: StartTaskBranchOptions): Promise<boo
     log.warn("Only governance paths are dirty — proceeding.");
   }
 
+  // The branch name comes from the file name: a dry run plans for a TASK file
+  // that `task add --dry-run` never wrote, so nothing above reads the file.
   const taskBranch = branchNameForTaskFile(taskFile);
-  const existingCtx = await readGitContext(taskFile);
   const branchExists = await gitBranchExists(cwd, taskBranch);
 
   if (opts.dryRun) {
@@ -99,6 +99,9 @@ export async function startTaskBranch(opts: StartTaskBranchOptions): Promise<boo
     );
     return true;
   }
+
+  const meta = await readTaskFile(taskFile);
+  const existingCtx = await readGitContext(taskFile);
 
   // Worktree-safe (D-006): never check out the integration branch — another
   // worktree may own it. New task branches start from <remote>/<integration>.
