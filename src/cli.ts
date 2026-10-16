@@ -104,8 +104,8 @@ task
     await taskDelCommand(taskRef, {
       dryRun: Boolean(opts.dryRun),
       force: Boolean(opts.force),
-      noRemoteDelete: Boolean(opts.noRemoteDelete),
-      noCloseMr: Boolean(opts.noCloseMr),
+      noRemoteDelete: opts.remoteDelete === false,
+      noCloseMr: opts.closeMr === false,
       cwd: opts.cwd as string | undefined,
     });
   });
@@ -172,7 +172,7 @@ task
   .action(async (taskRef: string | undefined, opts) => {
     await taskSyncCommand(taskRef, {
       dryRun: Boolean(opts.dryRun),
-      noRemoteDelete: Boolean(opts.noRemoteDelete),
+      noRemoteDelete: opts.remoteDelete === false,
       force: Boolean(opts.force),
       cwd: opts.cwd as string | undefined,
     });
@@ -190,7 +190,7 @@ task
   .action(async (opts) => {
     await taskReleaseCommand({
       dryRun: Boolean(opts.dryRun),
-      noMerge: Boolean(opts.noMerge),
+      noMerge: opts.merge === false,
       merge: Boolean(opts.merge),
       squash: Boolean(opts.squash),
       rebase: Boolean(opts.rebase),
