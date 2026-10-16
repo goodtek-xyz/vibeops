@@ -1,16 +1,14 @@
 import { resolve } from "node:path";
 
 import { readText } from "./filesystem.js";
-import { listWorkingTreeRelPaths } from "./git.js";
+import { listWorkingTreeRelPaths, runGit } from "./git.js";
 import { bold, cyan, dim, green, log, yellow } from "./logger.js";
+import { fetchBaseBranch } from "./merge-base-freshness.js";
 import { projectPaths } from "./paths.js";
 import { prNumberFromUrl } from "./pr-create.js";
 import { relPath } from "./task-context.js";
-import {
-  commitDirtyWorkingTree,
-  docsCommitMessageFor,
-  featCommitMessageFor,
-} from "./task-git-commit.js";
+import { resolveShipCommitMessage } from "./task-commit-msg.js";
+import { commitDirtyWorkingTree, docsCommitMessageFor } from "./task-git-commit.js";
 import { finishTaskWithPullRequest } from "./task-push-pr.js";
 import {
   applyTaskShipMemory,
@@ -40,6 +38,33 @@ export interface NewCycleOptions {
   readonly skipLlm?: boolean;
   /** Update the still-open MR/PR instead of opening a new one. */
   readonly allowOpenMr?: boolean;
+  /** `-m/--message` for the cycle's commit (TASK-scoped; body and trailers kept). */
+  readonly message?: string;
+  /** Never prompt for a commit message (CI). */
+  readonly nonInteractive?: boolean;
+}
+
+/**
+ * Files this cycle would change on the base: after integrating `<remote>/<base>` the tree
+ * difference to the base is exactly the work not merged yet (earlier cycles' commits were
+ * squash-merged, so counting commits would report them again). With `--no-integrate` the
+ * branch may lack newer base changes, so compare against the merge base instead.
+ */
+async function unmergedFiles(
+  cwd: string,
+  remote: string,
+  baseBranch: string,
+  integrated: boolean,
+): Promise<string[]> {
+  const baseRef = await fetchBaseBranch(cwd, remote, baseBranch);
+  const { stdout } = await runGit(
+    cwd,
+    integrated ? ["diff", "--name-only", baseRef, "HEAD"] : ["diff", "--name-only", `${baseRef}...HEAD`],
+  );
+  return stdout
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
 }
 
 async function commitReshipMetadata(opts: {
@@ -199,16 +224,41 @@ export async function runPostMergeNewCycle(
     return;
   }
 
-  const dirtyBefore = await listWorkingTreeRelPaths(cwd);
-  if (dirtyBefore.length === 0) {
-    log.info(
-      `Nothing to do — ${taskId} is merged with no new changes. Create a new TASK for new work (${cyan("vibeops task add")}).`,
-    );
-    return;
-  }
-
   const parts = parseTaskFilename(taskFile);
-  await commitDirtyWorkingTree(cwd, featCommitMessageFor(parts.id, meta.title), false);
+  const dirtyBefore = await listWorkingTreeRelPaths(cwd);
+  if (dirtyBefore.length > 0) {
+    const message = await resolveShipCommitMessage({
+      cwd,
+      taskId: parts.id,
+      title: meta.title,
+      provided: options.message,
+      nonInteractive: options.nonInteractive === true,
+    });
+    await commitDirtyWorkingTree(cwd, message, false);
+  } else {
+    // Work may already be committed on the task branch (not merged into the base yet).
+    let pending: string[];
+    try {
+      pending = await unmergedFiles(cwd, remote, integrationBranch, options.noIntegrate !== true);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message.split("\n")[0] : String(e);
+      log.error(`Could not compare ${taskId}'s branch with ${remote}/${integrationBranch}: ${msg}`);
+      process.exitCode = 1;
+      return;
+    }
+    if (pending.length === 0) {
+      log.info(
+        `Nothing to do — ${taskId} is merged with no new changes. Create a new TASK for new work (${cyan("vibeops task add")}).`,
+      );
+      return;
+    }
+    log.info(
+      `No uncommitted changes; ${pending.length} file(s) committed on ${initialCtx.taskBranch} are not on ${remote}/${integrationBranch} yet — opening the PR for them.`,
+    );
+    if (options.message?.trim()) {
+      log.warn("-m/--message not used: there is nothing new to commit (existing commits keep their messages).");
+    }
+  }
 
   let gitCtx = await readGitContext(taskFile);
   if (gitCtx === null) {

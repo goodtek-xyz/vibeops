@@ -858,3 +858,87 @@ test("task add refuses to resume a TASK whose Git Context is damaged (no second 
   assert.deepEqual(taskFiles(b), before, "no new TASK file");
   assert.equal((readFileSync(file, "utf8").match(/Git Context/g) ?? []).length, 1, "no second section");
 });
+
+// ---------------------------------------------------------------------------
+// New cycle: committed-but-unmerged work, and -m (observed: "no new changes" for work
+// already committed on the task branch; -m ignored, so trailers were lost).
+// ---------------------------------------------------------------------------
+
+/** What the host does on a squash merge: one new commit on develop, branch commits not ancestors. */
+function squashOnRemote(seed, taskBranch) {
+  git(seed, "fetch", "-q", "origin");
+  git(seed, "switch", "-q", "develop");
+  git(seed, "pull", "-q", "--ff-only", "origin", "develop");
+  git(seed, "merge", "-q", "--squash", `origin/${taskBranch}`);
+  git(seed, "commit", "-q", "-m", `squash ${taskBranch}`);
+  git(seed, "push", "-q", "origin", "develop");
+}
+
+/** Fake gh reporting the task's first PR as merged and none open. */
+function ghMergedEnv() {
+  const ghDir = mkdtempSync(join(tmpdir(), "vibeops-gh-merged-"));
+  writeFileSync(
+    join(ghDir, "gh"),
+    [
+      "#!/bin/sh",
+      'if [ "$1" = "--version" ]; then echo "gh version 2.92.0"; exit 0; fi',
+      'case "$*" in',
+      '  *"pr list"*"--state merged"*) echo \'[{"url":"https://github.com/o/r/pull/1","state":"MERGED"}]\'; exit 0;;',
+      '  *"pr list"*) echo "[]"; exit 0;;',
+      "esac",
+      "exit 1",
+      "",
+    ].join("\n"),
+  );
+  chmodSync(join(ghDir, "gh"), 0o755);
+  return { ...ENV, PATH: `${ghDir}:${ENV.PATH}` };
+}
+
+function firstCycleSquashed(tag) {
+  const env = setupTwoWorktrees();
+  assert.equal(vibeops(env.b, "task", "add", "--non-interactive", "--idea", `Cycle ${tag}`).code, 0);
+  const branch = currentBranch(env.b);
+  writeFileSync(join(env.b, "one.txt"), "1\n");
+  const ship1 = vibeops(env.b, "task", "ship", "-m", "feat: first", "--no-pr", "--non-interactive");
+  assert.equal(ship1.code, 0, ship1.out);
+  squashOnRemote(env.seed, branch);
+  return { ...env, branch, ghEnv: ghMergedEnv() };
+}
+
+const newCycle = (env, cwd, ...extra) =>
+  vibeopsEnv(env, cwd, "task", "ship", "--new-cycle", "--skip-llm", "--no-pr", "--non-interactive", ...extra);
+
+test("new cycle ships work already committed on the task branch (not on origin/develop yet)", () => {
+  const { b, branch, ghEnv } = firstCycleSquashed("committed");
+  writeFileSync(join(b, "two.txt"), "2\n");
+  git(b, "add", "-A");
+  git(b, "commit", "-q", "-m", "fix(task-002): second, committed by hand");
+
+  const r = newCycle(ghEnv, b);
+  assert.equal(r.code, 0, r.out);
+  assert.doesNotMatch(r.out, /Nothing to do/);
+  assert.match(r.out, /1 file\(s\) committed on task\/002-\S+ are not on origin\/develop yet/);
+  assert.equal(git(b, "ls-remote", "--heads", "origin", branch).split("\t")[0], git(b, "rev-parse", "HEAD"));
+});
+
+test("new cycle uses -m for its commit and keeps the trailer", () => {
+  const { b, ghEnv } = firstCycleSquashed("message");
+  writeFileSync(join(b, "three.txt"), "3\n");
+
+  const r = newCycle(ghEnv, b, "-m", "fix: third\n\nCo-Authored-By: A <a@example.invalid>");
+  assert.equal(r.code, 0, r.out);
+  const subjects = git(b, "log", "--format=%s", "-3").split("\n");
+  assert.ok(subjects.includes("fix(task-002): third"), subjects.join("\n"));
+  const sha = git(b, "log", "--format=%H", "--grep=^fix(task-002): third$", "-1");
+  assert.equal(
+    git(b, "log", "-1", "--format=%(trailers:key=Co-Authored-By,valueonly)", sha),
+    "A <a@example.invalid>",
+  );
+});
+
+test("new cycle with nothing new after a squash merge still says nothing to do", () => {
+  const { b, ghEnv } = firstCycleSquashed("none");
+  const r = newCycle(ghEnv, b);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /Nothing to do/);
+});

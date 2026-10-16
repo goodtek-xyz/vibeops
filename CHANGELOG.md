@@ -6,6 +6,8 @@ All notable changes to VibeOps are documented here.
 
 ### Fixed
 
+- **`task ship --new-cycle` missed work already committed on the task branch** ("Nothing to do — merged with no new changes"). With no uncommitted files it now compares the branch with the fetched `<remote>/<base>` by content (earlier cycles were squash-merged, so commit counts would mislead) and opens the new PR for what is not merged yet (TASK-032).
+- **`-m` was ignored in a new PR cycle**, so the commit used the TASK title and dropped trailers. The new cycle now resolves the message like a normal ship (body and trailers kept); `-m` with nothing to commit warns instead of making an empty commit (TASK-032).
 - **PR body listed other TASKs' changes** after the base branch was merged into the task branch: the Commits / Files lists came from the TASK's Base Commit. They are now computed against the freshly fetched `<remote>/<base>` (commits without merges, files from the merge base); the Base Commit is only a fallback when the fetch fails (TASK-031).
 
 ## 3.1.6 - 2026-10-17
