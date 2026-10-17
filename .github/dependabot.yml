@@ -1,0 +1,30 @@
+# Version updates as pull requests into the default branch (`develop`); CI checks each one and
+# `vibeops task merge` merges it like any other PR.
+#
+# cooldown: only versions released at least 14 days ago (the maintainers' rule for picking versions).
+# It applies to version updates only; security updates are not delayed.
+# https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference
+#
+# No target-branch: the default branch is `develop`, so version and security updates already target it.
+# Setting target-branch would stop the options below from applying to security updates, which always
+# use the default branch (same reference).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly }
+    cooldown: { default-days: 14 }
+    commit-message: { prefix: chore, include: scope }
+    groups:
+      npm-development:
+        dependency-type: development
+        update-types: [minor, patch]
+      npm-production:
+        dependency-type: production
+        update-types: [minor, patch]
+    # Majors open one PR per dependency (not matched by a group).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    cooldown: { default-days: 14 }
+    commit-message: { prefix: chore, include: scope }

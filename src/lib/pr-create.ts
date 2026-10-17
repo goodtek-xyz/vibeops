@@ -5,6 +5,7 @@ import { mergeRequestLabel } from "./git-host.js";
 import {
   classifyRollup,
   evaluateCheckGate,
+  withoutDynamicChecks,
   formatCheckGateProblems,
   type ClassifiedCheck,
   type RawRollupItem,
@@ -19,6 +20,7 @@ import {
 } from "./merge-request-readiness.js";
 import {
   evaluateActionsRuns,
+  isDynamicRun,
   listExpectedPullRequestWorkflows,
   listWorkflowRunsForSha,
   parseGitHubPullUrl,
@@ -423,13 +425,16 @@ export async function readMergeRequestDetails(
     if (problems.length > 0) throw new MergeRequestShapeError("gh", problems);
   }
   const checks = classifyRollup(parsed.statusCheckRollup);
-  const gate = evaluateCheckGate(checks);
+  // Dynamic workflows' check runs are not the commit's CI (see `withoutDynamicChecks`);
+  // required ones are still judged by name in the merge gate.
+  const ciChecks = withoutDynamicChecks(checks);
+  const gate = evaluateCheckGate(ciChecks);
   let pipelineStatus: PipelineStatus = "none";
   if (gate.state === "red") {
     pipelineStatus = "failed";
   } else if (gate.state === "pending") {
     pipelineStatus = "running";
-  } else if (checks.length > 0) {
+  } else if (ciChecks.length > 0) {
     pipelineStatus = "success";
   }
   const mergeable = parsed.mergeable?.trim().toUpperCase() ?? "";
@@ -509,11 +514,12 @@ function evaluateDetailsGate(
   requiredChecks: readonly string[],
 ): GateEvaluation {
   if (details.checks !== null) {
-    const gate = evaluateCheckGate(details.checks, requiredChecks);
+    const checks = withoutDynamicChecks(details.checks, requiredChecks);
+    const gate = evaluateCheckGate(checks, requiredChecks);
     return {
       state: gate.state,
       problems: formatCheckGateProblems(gate),
-      noChecks: details.checks.length === 0,
+      noChecks: checks.length === 0,
     };
   }
   const state = pipelineGateState(details.pipelineStatus);
@@ -568,7 +574,7 @@ async function evaluateGitHubActions(
     expected = await listExpectedPullRequestWorkflows(cwd, pr, sha, details.baseBranch);
     expectedCache.set(sha, expected);
   }
-  const runs = await listWorkflowRunsForSha(cwd, pr, sha);
+  const runs = (await listWorkflowRunsForSha(cwd, pr, sha)).filter((r) => !isDynamicRun(r));
   return {
     result: evaluateActionsRuns(
       runs,

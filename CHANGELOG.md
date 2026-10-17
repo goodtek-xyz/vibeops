@@ -4,6 +4,12 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 3.1.9 - 2026-10-17
+
+### Fixed
+
+- **The merge gate was blocked by GitHub's dynamic workflow runs.** A failed Dependabot run on the head commit (`event: dynamic`, `dynamic/dependabot/dependabot-updates`) refused a PR whose CI was green — and such runs cannot be re-run. Dynamic runs and `(dynamic)` check runs are now ignored; a `(dynamic)` check named in `requiredChecks` is still required (D-011, TASK-043).
+
 ## 3.1.8 - 2026-10-17
 
 ### Changed

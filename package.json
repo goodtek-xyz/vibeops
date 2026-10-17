@@ -1,6 +1,6 @@
 {
   "name": "@goodtek/vibeops",
-  "version": "3.1.8",
+  "version": "3.1.9",
   "description": "Minimal CLI rails for Cursor-based TASK-driven vibe coding.",
   "type": "module",
   "packageManager": "pnpm@9.15.9",
@@ -62,7 +62,7 @@
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@types/node": "^20.14.0",
-    "eslint": "10.11.0",
+    "eslint": "10.12.0",
     "tsx": "^4.23.15",
     "typescript": "^5.5.4",
     "typescript-eslint": "8.71.0"
