@@ -49,6 +49,18 @@ The maintainer organization standardised branches for all its repositories: only
 
 D-007 requires every Actions run for the head SHA to pass. That included GitHub's dynamic workflows — runs generated per job and not stored in the repository, such as the jobs that open Dependabot PRs (`event: dynamic`, `dynamic/dependabot/dependabot-updates`, check runs suffixed `(dynamic)`). A failed one (observed: Dependabot 403) refused a PR whose CI was green, and such a run cannot be re-run, so the PR stayed blocked. Decision: ignore `event: dynamic` runs (and `dynamic/…` paths) in the Actions part of the gate and `(dynamic)` check runs in the rollup, also when deriving the pipeline state; a `(dynamic)` check named in `requiredChecks` is still required. Basis: GitHub "Dependabot on GitHub Actions runners".
 
+## D-012 · `task add` / `task ship` check the repository baseline (3.2.0+)
+
+The maintainers' rule for their repositories: every change goes through the persona crew and the VibeOps TASK flow into `develop`, `main` only through `task release`. The tool checks what it can see locally before it creates or pushes anything: `branch-policy` (integration ≠ production), `default-branch` (remote default = integration, read with `git ls-remote --symref`), and — only when `.vibeops.json` names a crew — `personas` (`.personas/<crew>/SOURCE`) and `agents-contract` (`<!-- getpersona:<crew> -->` in AGENTS.md). Names follow the maintainers' repository baseline report. Default `warn` (a public tool must not impose one organization's crew on everyone, hence crew checks are opt-in); `enforce` stops the command. Host settings (branch protection, extra branches) stay with the host / the maintainers' platform checks.
+
+## D-013 · `task release --tag` makes "merge into main" the release (3.2.0+)
+
+Publishing starts from a `vX.Y.Z` tag on the release merge commit (`publish.yml`, D-010), which was a manual step after `task release`. `--tag` tags the host's merge commit with the `package.json` version found there and pushes the tag, after checking the commit is on the fetched production branch; an existing tag (local or remote) is refused, never moved. `publish.yml` keeps its own checks (tag = `package.json` version, commit on `main`).
+
+## D-014 · `task merge` updates a stale branch on the host (3.2.0+)
+
+D-008 refuses a head that does not contain the current base. With bot PRs landing all the time, every TASK PR needed manual base merges, and an agent once rebased and force-pushed instead. Decision: on GitHub, `task merge` calls update-branch with `expected_head_sha` — the host merges the base into the PR branch (merge commit; no rebase, no force push; `202 Accepted`) — waits for the PR to report the new head, and runs the whole gate (CI wait, stale-base check) again with unchanged rules; repeated when the base moved meanwhile, bounded by `waitTimeoutSeconds`. A conflict stops (resolve locally). API errors back off exponentially with full jitter (cap 60 s, GitHub rate-limit guidance). `merge.updateBranch: false` keeps the plain refusal; GitLab is unchanged. The push-rejected hint of `task ship` now says merge, not rebase.
+
 <!--
 Add subsequent decisions in the `D-NNN · one-line summary` form.
 Keep each entry short — one paragraph of "why" and "consequence" only.

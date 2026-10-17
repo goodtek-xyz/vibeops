@@ -795,7 +795,53 @@ export interface MergeMergeRequestOptions {
    * Refuse unless the head commit the gate approved contains `<remote>/<baseBranch>`
    * (`task merge`: a stale head can silently revert work merged since).
    */
-  readonly requireBaseInHead?: { readonly remote: string; readonly baseBranch: string };
+  readonly requireBaseInHead?: {
+    readonly remote: string;
+    readonly baseBranch: string;
+    /** GitHub: update a stale branch (update-branch) and re-check instead of refusing. */
+    readonly updateBranch?: boolean;
+  };
+}
+
+export type UpdateBranchOutcome = "accepted" | "head-moved" | "conflict" | "error";
+
+/**
+ * GitHub "Update a pull request branch": merges the base branch into the PR branch on the
+ * host (a merge commit — no rebase, no force push) and answers `202 Accepted`; a
+ * non-matching `expected_head_sha` answers 422
+ * (docs.github.com/rest/pulls/pulls#update-a-pull-request-branch).
+ */
+export async function updateGitHubPullBranch(
+  cwd: string,
+  url: string,
+  expectedHeadSha: string,
+): Promise<UpdateBranchOutcome> {
+  const pr = parseGitHubPullUrl(url);
+  if (pr === null) return "error";
+  try {
+    await execFileAsync(
+      "gh",
+      [
+        "api",
+        "--hostname",
+        pr.hostname,
+        "--method",
+        "PUT",
+        `repos/${pr.owner}/${pr.repo}/pulls/${pr.number}/update-branch`,
+        "--raw-field",
+        `expected_head_sha=${expectedHeadSha}`,
+      ],
+      { cwd, maxBuffer: 1024 * 1024 },
+    );
+    return "accepted";
+  } catch (e) {
+    const text = `${(e as { stderr?: string }).stderr ?? ""} ${e instanceof Error ? e.message : ""}`.toLowerCase();
+    if (text.includes("conflict")) return "conflict";
+    if (text.includes("expected head sha") || text.includes("head branch was modified")) {
+      return "head-moved";
+    }
+    return "error";
+  }
 }
 
 export interface CloseMergeRequestOptions {
@@ -840,8 +886,12 @@ export async function mergeMergeRequest(opts: MergeMergeRequestOptions): Promise
         : "";
     log.info(`would check ${label} status checks (all green${required}) before merging`);
     if (opts.requireBaseInHead !== undefined) {
-      const { remote, baseBranch } = opts.requireBaseInHead;
-      log.info(`would refuse unless the head commit contains ${remote}/${baseBranch} (stale base)`);
+      const { remote, baseBranch, updateBranch } = opts.requireBaseInHead;
+      log.info(
+        updateBranch === true && opts.host === "github"
+          ? `would update a stale branch from ${remote}/${baseBranch} on the host (update-branch, merge) and re-check`
+          : `would refuse unless the head commit contains ${remote}/${baseBranch} (stale base)`,
+      );
     }
     if (opts.host === "gitlab") {
       log.info(
@@ -853,28 +903,54 @@ export async function mergeMergeRequest(opts: MergeMergeRequestOptions): Promise
     return;
   }
 
+  const timing = { ...mergeGateTiming(MERGE_GATE_DEFAULTS), ...opts.gate };
+  // One budget for the whole merge, including branch updates (`waitTimeoutSeconds`).
+  const deadline = Date.now() + timing.timeoutMs;
   const runGate = async (): Promise<MergeRequestDetails | null> => {
-    const gate = await waitForMergeGate(opts.cwd, opts.host, opts.url, {
-      ...opts.gate,
-      waitForPending: opts.waitForCi === true,
-      requiredChecks: opts.requiredChecks ?? [],
-    });
-    if (!gate.ok) throw new MergeGateError(label, gate.problems);
-    if (gate.alreadyMerged) return null;
-    if (gate.details.headSha === null || gate.details.headSha.trim().length === 0) {
-      // Strict read already guarantees this; never merge unpinned.
-      throw new MergeGateError(label, ["host did not report the head commit SHA"]);
-    }
-    if (opts.requireBaseInHead !== undefined) {
-      const fresh = await checkBaseInHead({
-        cwd: opts.cwd,
-        remote: opts.requireBaseInHead.remote,
-        baseBranch: gate.details.baseBranch ?? opts.requireBaseInHead.baseBranch,
-        headSha: gate.details.headSha,
+    let updateErrors = 0;
+    for (;;) {
+      const gate = await waitForMergeGate(opts.cwd, opts.host, opts.url, {
+        ...opts.gate,
+        timeoutMs: Math.max(1, deadline - Date.now()),
+        waitForPending: opts.waitForCi === true,
+        requiredChecks: opts.requiredChecks ?? [],
       });
-      if (!fresh.ok) throw new MergeGateError(label, [fresh.problem]);
+      if (!gate.ok) throw new MergeGateError(label, gate.problems);
+      if (gate.alreadyMerged) return null;
+      const headSha = gate.details.headSha;
+      if (headSha === null || headSha.trim().length === 0) {
+        // Strict read already guarantees this; never merge unpinned.
+        throw new MergeGateError(label, ["host did not report the head commit SHA"]);
+      }
+      const base = opts.requireBaseInHead;
+      if (base === undefined) return gate.details;
+      const baseBranch = gate.details.baseBranch ?? base.baseBranch;
+      const fresh = await checkBaseInHead({ cwd: opts.cwd, remote: base.remote, baseBranch, headSha });
+      if (fresh.ok) return gate.details;
+      const canUpdate =
+        base.updateBranch === true && opts.host === "github" && fresh.problem.startsWith("stale base:");
+      if (!canUpdate) throw new MergeGateError(label, [fresh.problem]);
+      if (Date.now() >= deadline) {
+        throw new MergeGateError(label, [fresh.problem, "gave up updating the branch (waitTimeoutSeconds)"]);
+      }
+      const outcome = await updateGitHubPullBranch(opts.cwd, opts.url, headSha);
+      if (outcome === "conflict") {
+        throw new MergeGateError(label, [
+          fresh.problem,
+          `update-branch reports a merge conflict — merge ${base.remote}/${baseBranch} into the task branch locally, resolve, task ship`,
+        ]);
+      }
+      if (outcome === "error") {
+        // Read / API error: exponential back-off with full jitter, within the same budget.
+        await sleep(Math.min(errorBackoffMs(timing.intervalMs, updateErrors++), deadline - Date.now()));
+        continue;
+      }
+      updateErrors = 0;
+      log.info(
+        dim(`${baseBranch} moved — updated the ${label} branch on the host (merge, no force push); re-checking the new head…`),
+      );
+      await waitForHeadChange(opts.cwd, opts.host, opts.url, headSha, deadline, timing.intervalMs, label);
     }
-    return gate.details;
   };
 
   const details = await runGate();
@@ -900,6 +976,30 @@ export async function mergeMergeRequest(opts: MergeMergeRequestOptions): Promise
     cwd: opts.cwd,
     maxBuffer: 4 * 1024 * 1024,
   });
+}
+
+/** After update-branch (202, applied asynchronously): wait until the PR reports a new head. */
+async function waitForHeadChange(
+  cwd: string,
+  host: GitHost,
+  url: string,
+  oldHead: string,
+  deadline: number,
+  intervalMs: number,
+  label: string,
+): Promise<void> {
+  for (;;) {
+    const details = await getMergeRequestDetails(cwd, host, url);
+    if (details !== null && (details.state === "merged" || (details.headSha !== null && details.headSha !== oldHead))) {
+      return;
+    }
+    if (Date.now() >= deadline) {
+      throw new MergeGateError(label, [
+        `update-branch was accepted but the ${label} head is still ${oldHead.slice(0, 7)} (gave up, waitTimeoutSeconds)`,
+      ]);
+    }
+    await sleep(Math.min(intervalMs, deadline - Date.now()));
+  }
 }
 
 /** `gh pr merge` argv. `--match-head-commit` needs gh ≥ 2.13.0. */

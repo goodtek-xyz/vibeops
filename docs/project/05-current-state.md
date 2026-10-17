@@ -4,7 +4,7 @@
 
 ## Stage
 
-- **Package:** `@goodtek/vibeops` **3.1.9** (merge gate ignores dynamic workflow runs such as Dependabot updates).
+- **Package:** `@goodtek/vibeops` **3.2.0** (baseline checks, `task release --tag`, status baseline, stale-branch update in `task merge`, new-cycle Base Commit fix).
 - **CLI lifecycle:** `init` · `task add` · `task del` · **`task ship` (state-aware)** · `task merge` · `task sync` · `pull` · `task release` · **`status` (Now/Next)** · `llm`.
 - **Breaking (2.5.0):** `task reship` removed — use `task ship` / `--new-cycle`.
 - **2.5.1:** `task add` preflight + sync diagnosis + incomplete resume.
@@ -12,6 +12,11 @@
 - **3.0.0 (breaking):** merge gate — CheckRun/StatusContext classification fix, fail-closed (incl. no checks unless `merge.allowNoChecks`), strict `merge` config, SHA-pinned merges; requires gh ≥ 2.13.0 (TASK-020).
 - **3.1.1:** `task ship` commits staged / unstaged deletions and renames (`porcelain=v1 -z`, `git add -A` only for unstaged paths) (TASK-022).
 - **3.1.2:** merge gate waits for the PR's own GitHub Actions runs (expected `pull_request` workflows + all runs for the head SHA), head re-read before merge (TASK-024); CI on PRs + `main` (lint, typecheck, build, tests, smoke, gitleaks), npm Trusted Publishing workflow, OSS hygiene (TASK-023).
+- **3.2.0:** `ship --new-cycle` records the base it starts from as Base Commit (TASK-050).
+- **3.2.0:** `task merge` updates a stale PR branch on GitHub (update-branch, no force push) and re-checks (D-014, TASK-048).
+- **3.2.0:** `vibeops status` shows the baseline (checks, crew commit, other remote branches) (TASK-047).
+- **3.2.0:** `task release --tag` tags the release merge commit (D-013, TASK-046).
+- **3.2.0:** `task add` / `task ship` baseline checks (branch policy, remote default branch, persona crew when configured) (D-012, TASK-045).
 - **3.1.9:** merge gate ignores dynamic workflow runs (Dependabot) (D-011, TASK-043).
 - **3.1.8:** time values from official docs (D-009): merge wait default 21600 s, no empty-rollup grace, no post-merge polling (TASK-033). Lock values (D-006) still open.
 - **3.1.8:** `init` sets the integration branch as the default branch of a repository it creates (TASK-035).
@@ -39,14 +44,14 @@
 
 ## Next
 
-- Consumers: `npm i -g @goodtek/vibeops@3.1.9` (or `volta install @goodtek/vibeops@3.1.9`). Repos without CI: `"merge": {"allowNoChecks": true}`.
-- Maintainers: TASK PRs → `develop`; release = release-prep TASK on `develop` → `vibeops task release` (develop → main, after its CI) → tag `vX.Y.Z` on `main` → `publish.yml` publishes via npm Trusted Publishing (no token; 09-deployment.md). Manual `pnpm publish:npm` is a fallback only.
+- Consumers: `npm i -g @goodtek/vibeops@3.2.0` (or `volta install @goodtek/vibeops@3.2.0`). Repos without CI: `"merge": {"allowNoChecks": true}`.
+- Maintainers: TASK PRs → `develop`; release = release-prep TASK on `develop` → `vibeops task release --tag` (develop → main after its CI, then tag `vX.Y.Z` on the merge commit) → `publish.yml` publishes via npm Trusted Publishing (no token; 09-deployment.md). Manual `pnpm publish:npm` is a fallback only.
 
 ## Handoff (2026-10-17)
 
 State at handoff — clean, ready to start the next feature from `develop`:
 
-- Released: `@goodtek/vibeops` **3.1.9** (3.1.8 before) on npm (`latest`, SLSA provenance), tag `v3.1.8` on `main` (`cb59407`), published by `publish.yml` (Trusted Publishing, connection *Valid*). First release through `develop → main` (D-010).
+- Released: `@goodtek/vibeops` **3.2.0** (via `task release --tag`) on npm (`latest`, SLSA provenance), tag `v3.1.8` on `main` (`cb59407`), published by `publish.yml` (Trusted Publishing, connection *Valid*). First release through `develop → main` (D-010).
 - Branches: `develop` (default, integration) and `main` (releases only). No other branches and no worktrees.
 - Open PRs: only Dependabot major-version PRs, left open on purpose (each needs its own TASK). Dependabot minor / patch groups are merged after CI (#34 eslint, #35 @inquirer/prompts).
   - #36 `@types/node` 20 → 26: CI green, but the types must follow the lowest supported Node (`engines.node` `>=20`); keep 20.x (ignore majors) unless the Node floor moves.
@@ -58,7 +63,7 @@ State at handoff — clean, ready to start the next feature from `develop`:
 Next feature candidates (each its own TASK, smallest first):
 
 1. `task sync --non-interactive`: accept the flag like `task add` / `task ship` (sync never prompts, but scripts that pass it fail with "unknown option").
-2. `task ship -m` trailers on the metadata commit: the "mark shipped" commit (and the open-PR / new-cycle metadata commits) uses a fixed message (`docsCommitMessageFor`, `src/commands/task-ship.ts`), so the body and trailers of `-m` (e.g. `Co-Authored-By`) are missing there. Carry the trailers of `-m` over to the metadata commit (or accept trailers separately).
+2. `task ship -m` trailers on the metadata commit (also requested as a config option, e.g. a `Co-Authored-By` trailer for every generated commit): the "mark shipped" commit (and the open-PR / new-cycle metadata commits) uses a fixed message (`docsCommitMessageFor`, `src/commands/task-ship.ts`), so the body and trailers of `-m` (e.g. `Co-Authored-By`) are missing there. Carry the trailers of `-m` over to the metadata commit (or accept trailers separately).
 3. `findMergeRequestByBranches` error contract: it returns the helper's promise without `await` inside its `try`, so lookup errors escape the intended `catch` (`task ship`, `task del`; `task release` already handles it). Decide per caller: swallow vs. surface.
 4. Repository lock without design-value timeouts (D-006 / D-009): event-based wait (file watch) instead of the 50 ms retry, process start time for pid reuse instead of `staleSeconds` age, explicit handling of other-host / unreadable locks.
 5. Normalise the status words of TASK-001…017 (`done` / `Review` → `Shipped`) after checking each was merged.

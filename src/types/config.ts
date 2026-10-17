@@ -40,6 +40,8 @@ export interface VibeopsMergeConfig {
   emptyRollupGraceSeconds?: number;
   /** Allow merging when the host reports no checks at all. Default false (refuse). */
   allowNoChecks?: boolean;
+  /** `task merge`: bring a stale PR branch up to date with GitHub update-branch. Default true. */
+  updateBranch?: boolean;
 }
 
 export interface VibeopsConfig {
@@ -57,4 +59,9 @@ export interface VibeopsConfig {
    * `task merge` / `task release` validate it with `readMergeConfig` (fail closed).
    */
   merge?: unknown;
+  /**
+   * Raw `baseline` block (preflight checks of `task add` / `task ship`), preserved verbatim
+   * on re-init; validated by `src/lib/project-baseline.ts`.
+   */
+  baseline?: unknown;
 }

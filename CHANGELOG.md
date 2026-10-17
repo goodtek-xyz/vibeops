@@ -4,6 +4,19 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 3.2.0 - 2026-10-18
+
+### Fixed
+
+- **`task ship --new-cycle` recorded the TASK's own commit as Base Commit** (the task branch HEAD after the follow-up commit). It now records where the cycle starts on the base: the merge base of the task branch and the freshly fetched `<remote>/<base>` (TASK-050).
+
+### Added
+
+- **`task merge` updates a stale PR branch** (GitHub, `merge.updateBranch`, default on): update-branch merges the base into the PR branch on the host (no force push), the gate waits for the new head's CI and re-checks with the same rules, repeating while bot PRs keep moving the base, within `waitTimeoutSeconds`; conflicts stop. `task ship`'s push-rejected hint now says merge (`git pull --no-rebase`), never rebase + force-push (D-014, TASK-048).
+- **`vibeops status` shows the repository baseline**: the baseline checks, mode, the persona crew and its pinned catalog commit, and other remote branches (`--json` → `baseline`) (TASK-047).
+- **`task release --tag`**: after the release merge, tag the merge commit `v<package.json version>` and push the tag (refuses when the commit is not on the production branch, the version is not semver, or the tag already exists) — merge into production and tagging for publish become one step (D-013, TASK-046).
+- **Baseline checks before `task add` / `task ship`** (`.vibeops.json` → `baseline`): `branch-policy` (integration ≠ production), `default-branch` (remote default = integration), and with `baseline.crew` set `personas` / `agents-contract`. `mode`: `warn` (default), `enforce` (stop, exit 1), `off` (D-012, TASK-045).
+
 ## 3.1.9 - 2026-10-17
 
 ### Fixed

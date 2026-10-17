@@ -7,6 +7,7 @@ import { readGitInfo } from "../lib/git.js";
 import { buildLlmStatusReport } from "../lib/llm-status.js";
 import { bold, cyan, dim, green, log, yellow } from "../lib/logger.js";
 import { projectPaths } from "../lib/paths.js";
+import { summarizeBaseline, type BaselineSummary } from "../lib/project-baseline.js";
 import { VERSION } from "../version.js";
 import {
   computeNextHint,
@@ -73,6 +74,8 @@ export interface StatusReport {
   nextHint: string;
   nextLines: string[];
   llm: LlmStatusReport | null;
+  /** Repository baseline (`.vibeops.json` → `baseline`); null without a git block. */
+  baseline: BaselineSummary | null;
 }
 
 async function buildReport(cwd: string): Promise<StatusReport> {
@@ -148,6 +151,8 @@ async function buildReport(cwd: string): Promise<StatusReport> {
   });
 
   const llm = isVibeopsProject ? await buildLlmStatusReport(cwd) : null;
+  const baseline =
+    isVibeopsProject && config?.git && git.isRepo ? await summarizeBaseline(cwd, config.git) : null;
 
   return {
     vibeopsVersion: VERSION,
@@ -172,6 +177,7 @@ async function buildReport(cwd: string): Promise<StatusReport> {
     nextHint: hintToText(hint, cwd, focus),
     nextLines: [...hintToLines(hint, cwd, focus)],
     llm,
+    baseline,
   };
 }
 
@@ -269,6 +275,27 @@ function printDetails(report: StatusReport): void {
   if (report.git.policy) hostBits.push(report.git.policy);
   if (hostBits.length > 0) {
     log.info(`  ${dim("Git")}       ${hostBits.join(" · ")}`);
+  }
+
+  if (report.baseline) {
+    const b = report.baseline;
+    if (b.configError !== null) {
+      log.info(`  ${dim("Baseline")}  ${yellow(b.configError)}`);
+    }
+    const failing = b.checks.filter((c) => !c.ok);
+    const crew = b.crew !== null ? ` · ${b.crew}${b.crewCommit ? ` ${b.crewCommit.slice(0, 7)}` : ""}` : "";
+    log.info(
+      `  ${dim("Baseline")}  ${
+        failing.length === 0
+          ? `ok (${b.checks.map((c) => c.id).join(", ")})`
+          : yellow(failing.map((c) => `${c.id}: ${c.detail}`).join("; "))
+      } · mode ${b.mode}${crew}`,
+    );
+    if (b.otherBranches === null) {
+      log.info(`  ${dim("Branches")}  ${dim("(remote branches unreadable)")}`);
+    } else if (b.otherBranches.length > 0) {
+      log.info(`  ${dim("Branches")}  other remote branches: ${b.otherBranches.join(", ")}`);
+    }
   }
 
   if (report.llm) {

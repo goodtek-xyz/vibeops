@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 
 import { readText } from "../lib/filesystem.js";
 import { requireGitConfig } from "../lib/git-config.js";
+import { preflightBaseline } from "../lib/project-baseline.js";
 import {
   gitCommitsAhead,
   gitHeadCommit,
@@ -93,7 +94,7 @@ function describePushFailure(message: string): string {
     lower.includes("rejected") ||
     lower.includes("behind")
   ) {
-    return "Push rejected — the remote branch has commits you don't. Pull/rebase the task branch, then rerun.";
+    return "Push rejected — the remote branch has commits you don't. Merge them in (git pull --no-rebase), then rerun; never rebase + force-push a shared task branch.";
   }
   return `git push failed: ${message}`;
 }
@@ -449,6 +450,12 @@ export async function taskShipCommand(
     log.info(`  ${dim("PR")}    ${prRefLabel(prCtx.number)} (${prCtx.state})`);
   }
   log.blank();
+
+  const baselineGit = await requireGitConfig(cwd).catch(() => null);
+  if (baselineGit !== null && !(await preflightBaseline(cwd, baselineGit, "task ship"))) {
+    process.exitCode = 1;
+    return;
+  }
 
   const ctx: ShipContext = {
     cwd,

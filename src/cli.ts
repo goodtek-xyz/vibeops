@@ -186,9 +186,11 @@ task
   .option("--squash", "Squash merge (default is merge commit for release)")
   .option("--merge", "Merge commit (default for release)")
   .option("--rebase", "Rebase merge")
+  .option("--tag", "After the merge, tag the release merge commit v<package.json version> and push it")
   .option("--cwd <path>", "Target directory")
   .action(async (opts) => {
     await taskReleaseCommand({
+      tag: Boolean(opts.tag),
       dryRun: Boolean(opts.dryRun),
       noMerge: opts.merge === false,
       merge: Boolean(opts.merge),

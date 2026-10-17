@@ -147,7 +147,7 @@ vibeops llm use auto   # auto | codex-oauth | cursor-agent | openai
 - **`task ship`**: `-m/--message`, `--new-cycle`, `--no-commit`, `--dry-run`, `--no-pr`, `--non-interactive`, `--allow-open-mr`, `--no-integrate`, `--recreate-branch`, `--skip-llm`
 - **`task merge`**: `--dry-run`, `--merge`, `--rebase`
 - **`task sync`**: `--dry-run`, `--no-remote-delete`, `--force`
-- **`task release`**: `--dry-run`, `--no-merge`, `--merge`, `--rebase`
+- **`task release`**: `--dry-run`, `--no-merge`, `--merge`, `--rebase`, `--tag` (after the merge, tag the release merge commit `v<package.json version>` and push it; never moves an existing tag)
 - **`pull`**: `--dry-run`
 - **`status`**: `--json`
 
@@ -201,6 +201,26 @@ A branch counts only when its name has the **generated form** `task/<NNN>` or `t
 
 If a configured remote cannot be fetched, `task add` stops without creating a TASK file. Across machines, `task ship` re-checks the remote (`git ls-remote`) right before pushing and refuses if another task branch with the same number already exists there.
 
+## Baseline checks
+
+`task add` and `task ship` first check that the repository follows the VibeOps flow (`.vibeops.json` → `baseline`):
+
+| Check | OK when |
+|-------|---------|
+| `branch-policy` | `git.integrationBranch` ≠ `git.productionBranch` (e.g. `develop` → `main`) |
+| `default-branch` | the remote's default branch (`git ls-remote --symref <remote> HEAD`) is the integration branch |
+| `personas` | with `baseline.crew` set: `.personas/<crew>/SOURCE` exists |
+| `agents-contract` | with `baseline.crew` set: AGENTS.md has the `<!-- getpersona:<crew> -->` section |
+
+```json
+{ "baseline": { "mode": "warn", "crew": "vibe-crew" } }
+```
+
+- `mode`: `warn` (default — print each failing check with a fix and continue), `enforce` (stop with exit code 1, nothing created or pushed), `off`.
+- `crew`: persona crew to require; omitted → the crew checks are skipped.
+- `vibeops status` shows the same checks (`Baseline …`), the crew's pinned catalog commit, and remote branches other than integration / production / `task/*` / `sync/*` (`status --json` → `baseline`).
+- The block is validated strictly (unknown keys / values are errors and stop the command).
+
 ## Merge gate
 
 > **3.0.0 breaking:** a PR/MR with **no checks at all** is refused by default. Repos without CI: set `"merge": {"allowNoChecks": true}` in `.vibeops.json`. Requires **gh ≥ 2.13.0**.
@@ -227,7 +247,7 @@ Before calling `gh pr merge` / `glab mr merge`:
 - **After the merge:** `gh pr merge` / `glab mr merge` return the result synchronously (GitHub `merged: true`, GitLab `state: "merged"`), so VibeOps reads the PR/MR once to confirm. Not merged at that point (merge queue / auto-merge) is reported, not waited for.
 - **The merge is pinned to the checked commit:** right before merging the gate re-reads the PR head; if it moved, the new head is evaluated from scratch. The merge itself uses `gh pr merge --match-head-commit <sha>` (requires **gh ≥ 2.13.0**) / `glab mr merge --auto-merge=false --sha <sha>` (verified with glab 1.106), so a push between the last check and the merge makes the host refuse. A GitLab `405` re-runs the gate and retries once with the same flags.
 - **Unreadable Git Context stops `task ship` / `task add`:** a TASK file whose `## Git Context` cannot be read (e.g. an edit left `## ## Git Context`) makes `task ship` exit 1 before committing or pushing, naming the line; `task add` refuses to "resume" such a TASK (it would write a second section) and names the file and line.
-- **`task merge` refuses a stale base:** the head commit the gate approved must contain the current `<remote>/<base>` (`git merge-base --is-ancestor`, after fetching the base branch and the head commit). A head that does not — the base moved since the branch was pushed, or the branch was rebuilt on an old base (e.g. `git reset --soft <stale origin/develop>` + commit) — can silently revert work merged into the base since, and a squash merge lands that revert. Bring the branch up to date (`git fetch` + `git merge <remote>/<base>`, test, `task ship`), wait for CI, then rerun `task merge`. A fetch failure refuses (fail closed). `task release` does not apply this check (with merge-commit releases the production branch is normally not an ancestor of the integration branch).
+- **`task merge` refuses a stale base:** the head commit the gate approved must contain the current `<remote>/<base>` (`git merge-base --is-ancestor`, after fetching the base branch and the head commit). A head that does not — the base moved since the branch was pushed, or the branch was rebuilt on an old base (e.g. `git reset --soft <stale origin/develop>` + commit) — can silently revert work merged into the base since, and a squash merge lands that revert. On GitHub (`merge.updateBranch`, default `true`) `task merge` brings the branch up to date itself: [update-branch](https://docs.github.com/rest/pulls/pulls#update-a-pull-request-branch) merges the base into the PR branch on the host (a merge commit — no rebase, no force push), then the gate waits for the new head and checks it with the same rules, again if the base moved meanwhile, all within `waitTimeoutSeconds`; a merge conflict stops with the local-merge instruction. Otherwise (GitLab, or `updateBranch: false`) bring the branch up to date yourself (`git fetch` + `git merge <remote>/<base>`, test, `task ship`), wait for CI, then rerun `task merge`. A fetch failure refuses (fail closed). `task release` does not apply this check (with merge-commit releases the production branch is normally not an ancestor of the integration branch).
 
 ### Configuration (`.vibeops.json` → `merge`)
 
@@ -252,6 +272,7 @@ Before calling `gh pr merge` / `glab mr merge`:
 | `pollIntervalSeconds` | `10` | integer ≥ 1, ≤ timeout | Poll interval while waiting (same default as `gh pr checks --watch`). |
 | `emptyRollupGraceSeconds` | `0` | integer ≥ 0, ≤ timeout | Only when no GitHub Actions workflow is expected: how long an empty check list is re-polled before "no checks" applies. Default `0`: name CI outside GitHub Actions in `requiredChecks` so the gate waits for it by name, instead of guessing how long it takes to report. |
 | `allowNoChecks` | `false` | boolean | Merge a PR that has no checks at all (repo without CI). Prints one warning per such merge. |
+| `updateBranch` | `true` | boolean | `task merge` on GitHub: update a stale PR branch with update-branch (merge, no force push) and re-check, instead of refusing. |
 
 - Check names are exact (`CheckRun.name` / `StatusContext.context`) or a `*` glob (`"lint*"`, `"* · linux"`). Required checks are GitHub-only; GitLab gates on the head pipeline.
 - The block is validated strictly: it must be an object, unknown keys (typos) and wrong types are errors, and `task merge` / `task release` exit 1 naming the key.

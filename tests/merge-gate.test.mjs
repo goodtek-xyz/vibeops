@@ -45,6 +45,24 @@ const dir = process.env.FAKE_HOST_DIR;
 const args = process.argv.slice(2);
 if (args[0] === "--version") { console.log("fake 1.0"); process.exit(0); }
 const event = (line) => fs.appendFileSync(dir + "/events.log", line + "\\n");
+if (args[0] === "api" && args.some((a) => a.endsWith("/update-branch"))) {
+  // update-branch: optional <state>/update-fail (stderr text); else the next prepared head
+  // from <state>/next-heads (JSON array) becomes the PR head (<state>/head).
+  event("update-branch");
+  const failPath = dir + "/update-fail";
+  if (fs.existsSync(failPath)) {
+    process.stderr.write(fs.readFileSync(failPath, "utf8"));
+    process.exit(1);
+  }
+  const nextPath = dir + "/next-heads";
+  const next = fs.existsSync(nextPath) ? JSON.parse(fs.readFileSync(nextPath, "utf8")) : [];
+  if (next.length > 0) {
+    fs.writeFileSync(dir + "/head", next.shift());
+    fs.writeFileSync(nextPath, JSON.stringify(next));
+  }
+  process.stdout.write("{}");
+  process.exit(0);
+}
 if (args[0] === "api") {
   const path = args[args.length - 1];
   const routesPath = dir + "/api.json";
@@ -76,7 +94,10 @@ if (args[1] === "view") {
   const i = fs.existsSync(counterPath) ? Number(fs.readFileSync(counterPath, "utf8")) : 0;
   fs.writeFileSync(counterPath, String(i + 1));
   event("view " + i);
-  process.stdout.write(JSON.stringify(views[Math.min(i, views.length - 1)]));
+  const view = views[Math.min(i, views.length - 1)];
+  const headPath = dir + "/head";
+  if (fs.existsSync(headPath)) view.headRefOid = fs.readFileSync(headPath, "utf8").trim();
+  process.stdout.write(JSON.stringify(view));
   process.exit(0);
 }
 if (args[1] === "merge") {
@@ -272,6 +293,7 @@ test("parseMergeConfig: valid block", () => {
     pollIntervalSeconds: 3,
     emptyRollupGraceSeconds: 0,
     allowNoChecks: true,
+    updateBranch: false,
   });
   assert.deepEqual(cfg, {
     requiredChecks: ["build", "lint*"],
@@ -280,7 +302,10 @@ test("parseMergeConfig: valid block", () => {
     pollIntervalSeconds: 3,
     emptyRollupGraceSeconds: 0,
     allowNoChecks: true,
+    updateBranch: false,
   });
+  assert.equal(MERGE_GATE_DEFAULTS.updateBranch, true);
+  assert.throws(() => parseMergeConfig({ updateBranch: "yes" }), /`updateBranch` must be true or false/);
 });
 
 test("parseMergeConfig: malformed blocks throw MergeConfigError naming the key", () => {
@@ -1123,4 +1148,63 @@ test("checks: a failed '(dynamic)' check run is ignored unless required by name"
 test("evaluateActionsRuns / isDynamicRun skip dynamic runs", () => {
   const r = evaluateActionsRuns([DEPENDABOT_DYNAMIC(2, "completed", "failure")], []);
   assert.deepEqual(r, { failed: [], pending: [], missing: [] });
+});
+
+// ---------------------------------------------------------------------------
+// Stale base → update-branch (GitHub merges the base into the PR branch on the host; no
+// force push), wait for the new head, re-check with the same rules. Bot PRs keep landing:
+// the base moves again while the first update is being checked.
+// ---------------------------------------------------------------------------
+
+/** In `work`: merge origin/main into HEAD, push to `branch`, return the merge commit. */
+function mergeBaseInto(work, branch) {
+  g(work, "fetch", "-q", "origin");
+  g(work, "merge", "-q", "--no-edit", "origin/main");
+  g(work, "push", "-q", "origin", `HEAD:${branch}`);
+  return g(work, "rev-parse", "HEAD");
+}
+
+test("update-branch: base moves twice while merging → two updates, merges the final head", async () => {
+  const { other, work } = gitHost();
+  g(work, "switch", "-q", "-c", "task/5");
+  const h1 = commitFile(work, "t.txt", "t\n");
+  g(work, "push", "-q", "origin", "task/5");
+  landOnMain(other, "b1.txt");
+  const h2 = mergeBaseInto(work, "task/5"); // what the host's first update produces
+  landOnMain(other, "b2.txt"); // another bot PR lands meanwhile
+  const h3 = mergeBaseInto(work, "task/5"); // second update
+  g(work, "reset", "-q", "--hard", h1); // the local checkout is not involved
+  writeFileSync(join(stateDir, "head"), h1);
+  writeFileSync(join(stateDir, "next-heads"), JSON.stringify([h2, h3]));
+  queueViews([green(h1)]);
+  await merge({ cwd: work, requireBaseInHead: { ...STALE, updateBranch: true } });
+  assert.equal(events().filter((e) => e === "update-branch").length, 2, events().join("\n"));
+  assert.deepEqual(mergeCalls(), [["pr", "merge", "7", "--squash", "--match-head-commit", h3]]);
+});
+
+test("update-branch: a merge conflict refuses with the local-merge instruction", async () => {
+  const { other, work } = gitHost();
+  g(work, "switch", "-q", "-c", "task/6");
+  const h1 = commitFile(work, "t.txt", "t\n");
+  g(work, "push", "-q", "origin", "task/6");
+  landOnMain(other, "b.txt");
+  writeFileSync(join(stateDir, "head"), h1);
+  writeFileSync(join(stateDir, "update-fail"), "gh: merge conflict between base and head (HTTP 422)");
+  queueViews([green(h1)]);
+  await assert.rejects(
+    merge({ cwd: work, requireBaseInHead: { ...STALE, updateBranch: true } }),
+    /update-branch reports a merge conflict — merge origin\/main into the task branch locally/,
+  );
+  assert.deepEqual(mergeCalls(), []);
+});
+
+test("update-branch disabled (merge.updateBranch: false) keeps refusing a stale base", async () => {
+  const { other, work } = gitHost();
+  g(work, "switch", "-q", "-c", "task/7");
+  const h1 = commitFile(work, "t.txt", "t\n");
+  g(work, "push", "-q", "origin", "task/7");
+  landOnMain(other, "b.txt");
+  queueViews([green(h1)]);
+  await assert.rejects(merge({ cwd: work, requireBaseInHead: { ...STALE, updateBranch: false } }), /stale base/);
+  assert.equal(events().filter((e) => e === "update-branch").length, 0);
 });
