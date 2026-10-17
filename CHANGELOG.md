@@ -4,6 +4,10 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+### Changed
+
+- **`vibeops init` makes the integration branch the default branch** of a repository it creates on GitHub (`gh repo edit --default-branch`) or GitLab (project API `default_branch`), so PRs and clones start from `develop`. Existing repositories are not changed; on failure the manual command is printed (TASK-035).
+
 ## 3.1.7 - 2026-10-17
 
 ### Fixed

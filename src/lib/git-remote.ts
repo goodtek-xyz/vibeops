@@ -41,6 +41,8 @@ export interface EnsureRemoteResult {
   readonly host: GitHost;
   /** True when the user chose local-only / skip. */
   readonly skipped?: boolean;
+  /** True when init created this repository on the host (not an existing one). */
+  readonly created?: boolean;
 }
 
 async function createGithubRepo(cwd: string, name: string): Promise<string> {
@@ -224,10 +226,40 @@ async function createOnHost(
         await runGit(cwd, ["remote", "rename", "origin", remote]);
       }
     }
-    return { remote, url, host };
+    return { remote, url, host, created: true };
   }
   const url = await createGithubRepo(cwd, name);
-  return { remote, url, host };
+  return { remote, url, host, created: true };
+}
+
+/**
+ * Make `branch` the host's default branch (official CLIs: `gh repo edit --default-branch`,
+ * cli.github.com/manual/gh_repo_edit; GitLab project API `default_branch` via `glab api`,
+ * docs.gitlab.com/api/projects/#edit-a-project; `:id` placeholder: docs.gitlab.com/cli/api/).
+ * Returns false (caller prints the manual step) when the CLI call fails.
+ */
+export async function setRemoteDefaultBranch(
+  cwd: string,
+  host: GitHost,
+  branch: string,
+): Promise<boolean> {
+  try {
+    if (host === "gitlab") {
+      await execFileAsync(
+        "glab",
+        ["api", "--method", "PUT", "projects/:id", "--raw-field", `default_branch=${branch}`],
+        { cwd, maxBuffer: 1024 * 1024 },
+      );
+    } else {
+      await execFileAsync("gh", ["repo", "edit", "--default-branch", branch], {
+        cwd,
+        maxBuffer: 1024 * 1024,
+      });
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**

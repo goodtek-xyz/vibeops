@@ -141,6 +141,7 @@ vibeops llm use auto   # auto | codex-oauth | cursor-agent | openai
 ## Flags (common)
 
 - **`init`**: `--clients`, `--yes`, `--dry-run`, `--force`, `--git`, `--initial-commit`, `--git-policy gitflow|trunk`, `--integration-branch`, `--production-branch`, `--git-host github|gitlab`, `--allow-no-remote`, `--cwd`
+  When `init` creates the repository on GitHub / GitLab (interactive), it pushes `main` and the integration branch and makes the integration branch (`develop` with the GitFlow preset) the repository's default branch; an existing repository's default branch is not changed.
 - **`task add`**: `--dry-run`, `--non-interactive --idea "…"`
 - **`task del`**: `--dry-run`, `--force`, `--no-remote-delete`, `--no-close-mr`
 - **`task ship`**: `-m/--message`, `--new-cycle`, `--no-commit`, `--dry-run`, `--no-pr`, `--non-interactive`, `--allow-open-mr`, `--no-integrate`, `--recreate-branch`, `--skip-llm`
