@@ -49,18 +49,17 @@
 - Consumers: `npm i -g @goodtek/vibeops@3.3.1` (or `volta install @goodtek/vibeops@3.3.1`). Repos without CI: `"merge": {"allowNoChecks": true}`.
 - Maintainers: TASK PRs → `develop`; release = release-prep TASK on `develop` → `vibeops task release --tag` (develop → main after its CI, then tag `vX.Y.Z` on the merge commit) → `publish.yml` publishes via npm Trusted Publishing (no token; 09-deployment.md). Manual `pnpm publish:npm` is a fallback only.
 
-## Handoff (2026-10-17)
+## Handoff (2026-10-18)
 
 State at handoff — clean, ready to start the next feature from `develop`:
 
 - Released: `@goodtek/vibeops` **3.3.1** (via `task release --tag`) on npm (`latest`, SLSA provenance); each release is tagged `vX.Y.Z` on its release merge commit on `main`, published by `publish.yml` (Trusted Publishing, connection *Valid*). Releases go through `develop → main` (D-010; the first was 3.1.8).
 - Branches: `develop` (default, integration) and `main` (releases only). No other branches and no worktrees.
-- Open PRs: only Dependabot major-version PRs, left open on purpose (each needs its own TASK). Dependabot minor / patch groups are merged after CI (#34 eslint, #35 @inquirer/prompts).
-  - #36 `@types/node` 20 → 26: CI green, but the types must follow the lowest supported Node (`engines.node` `>=20`); keep 20.x (ignore majors) unless the Node floor moves.
-  - #37 `typescript` 5.9 → 6.0: CI fails on all Node versions; needs a migration TASK.
-  - #38 `commander` 12 → 15: CI green, but commander 15 requires Node `>=22.12.0`, above this package's `>=20`; adopt only with a decision to raise the Node floor (also re-check negated-flag parsing, TASK-025).
+- Open PRs: none. Dependabot minor / patch groups are merged after CI (#34 eslint, #35 @inquirer/prompts); the major PRs #36 `@types/node`, #37 `typescript`, #38 `commander` were judged and closed with reasons (TASK-056), with `ignore` rules in `.github/dependabot.yml` for the `@types/node` and `commander` majors.
 - TASKs: none In Progress (TASK-000 is the template). TASK-001…017 still carry the old status words `done` / `Review` from before the Shipped vocabulary.
 - CI green on `develop` and `main`. One open Dependabot alert: `sprintf-js` (no fixed release; reached only through `js-yaml`'s CLI, not used — see TASK-027).
+
+Ready to start the next TASK from `develop` with `vibeops task add`.
 
 Next feature candidates (each its own TASK, smallest first):
 
@@ -68,7 +67,9 @@ Next feature candidates (each its own TASK, smallest first):
 2. `task ship -m` trailers on the metadata commit (also requested as a config option, e.g. a `Co-Authored-By` trailer for every generated commit): the "mark shipped" commit (and the open-PR / new-cycle metadata commits) uses a fixed message (`docsCommitMessageFor`, `src/commands/task-ship.ts`), so the body and trailers of `-m` (e.g. `Co-Authored-By`) are missing there. Carry the trailers of `-m` over to the metadata commit (or accept trailers separately).
 3. `findMergeRequestByBranches` error contract: it returns the helper's promise without `await` inside its `try`, so lookup errors escape the intended `catch` (`task ship`, `task del`; `task release` already handles it). Decide per caller: swallow vs. surface.
 4. Repository lock without design-value timeouts (D-006 / D-009): event-based wait (file watch) instead of the 50 ms retry, process start time for pid reuse instead of `staleSeconds` age, explicit handling of other-host / unreadable locks.
-5. Normalise the status words of TASK-001…017 (`done` / `Review` → `Shipped`) after checking each was merged.
+5. TypeScript 6 migration (Dependabot #37 failed CI: TS 6 no longer loads `@types/*` automatically — `types` must be set in `tsconfig.json` — plus follow-up `noImplicitAny` errors).
+6. Raise the Node floor to `>=22.12` to adopt commander 15 (owner decision; also re-check negated-flag parsing, TASK-025; remove the `commander` ignore rule then).
+7. Normalise the status words of TASK-001…017 (`done` / `Review` → `Shipped`) after checking each was merged.
 
 Owner decisions pending:
 
