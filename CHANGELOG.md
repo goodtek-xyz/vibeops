@@ -4,6 +4,8 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 3.2.0 - 2026-10-18
+
 ### Fixed
 
 - **`task ship --new-cycle` recorded the TASK's own commit as Base Commit** (the task branch HEAD after the follow-up commit). It now records where the cycle starts on the base: the merge base of the task branch and the freshly fetched `<remote>/<base>` (TASK-050).
