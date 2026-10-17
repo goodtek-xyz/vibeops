@@ -12,6 +12,7 @@ export interface MergeGateConfig {
   readonly pollIntervalSeconds: number;
   readonly emptyRollupGraceSeconds: number;
   readonly allowNoChecks: boolean;
+  readonly updateBranch: boolean;
 }
 
 /**
@@ -35,6 +36,8 @@ export const MERGE_GATE_DEFAULTS: MergeGateConfig = {
   // to report.
   emptyRollupGraceSeconds: 0,
   allowNoChecks: false,
+  // GitHub's own "Update branch" (merge, no force push) — see `updateGitHubPullBranch`.
+  updateBranch: true,
 };
 
 /** Inclusive bounds for the numeric settings (seconds); cross-checks below keep them ≤ the wait. */
@@ -51,6 +54,7 @@ const KNOWN_KEYS: ReadonlySet<keyof VibeopsMergeConfig> = new Set([
   "pollIntervalSeconds",
   "emptyRollupGraceSeconds",
   "allowNoChecks",
+  "updateBranch",
 ]);
 
 /** Invalid `merge` block in `.vibeops.json`. Merge commands refuse to run. */
@@ -125,7 +129,14 @@ export function parseMergeConfig(raw: unknown): MergeGateConfig {
         ? MERGE_GATE_DEFAULTS.emptyRollupGraceSeconds
         : seconds("emptyRollupGraceSeconds", o.emptyRollupGraceSeconds),
     allowNoChecks: MERGE_GATE_DEFAULTS.allowNoChecks,
+    updateBranch: MERGE_GATE_DEFAULTS.updateBranch,
   };
+  if (o.updateBranch !== undefined) {
+    if (typeof o.updateBranch !== "boolean") {
+      throw new MergeConfigError("`updateBranch` must be true or false.");
+    }
+    cfg.updateBranch = o.updateBranch;
+  }
   if (o.allowNoChecks !== undefined) {
     if (typeof o.allowNoChecks !== "boolean") {
       throw new MergeConfigError("`allowNoChecks` must be true or false.");

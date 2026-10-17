@@ -40,6 +40,8 @@ export interface VibeopsMergeConfig {
   emptyRollupGraceSeconds?: number;
   /** Allow merging when the host reports no checks at all. Default false (refuse). */
   allowNoChecks?: boolean;
+  /** `task merge`: bring a stale PR branch up to date with GitHub update-branch. Default true. */
+  updateBranch?: boolean;
 }
 
 export interface VibeopsConfig {

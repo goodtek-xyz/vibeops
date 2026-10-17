@@ -12,6 +12,7 @@
 - **3.0.0 (breaking):** merge gate — CheckRun/StatusContext classification fix, fail-closed (incl. no checks unless `merge.allowNoChecks`), strict `merge` config, SHA-pinned merges; requires gh ≥ 2.13.0 (TASK-020).
 - **3.1.1:** `task ship` commits staged / unstaged deletions and renames (`porcelain=v1 -z`, `git add -A` only for unstaged paths) (TASK-022).
 - **3.1.2:** merge gate waits for the PR's own GitHub Actions runs (expected `pull_request` workflows + all runs for the head SHA), head re-read before merge (TASK-024); CI on PRs + `main` (lint, typecheck, build, tests, smoke, gitleaks), npm Trusted Publishing workflow, OSS hygiene (TASK-023).
+- **Unreleased:** `task merge` updates a stale PR branch on GitHub (update-branch, no force push) and re-checks (D-014, TASK-048).
 - **Unreleased:** `vibeops status` shows the baseline (checks, crew commit, other remote branches) (TASK-047).
 - **Unreleased:** `task release --tag` tags the release merge commit (D-013, TASK-046).
 - **Unreleased:** `task add` / `task ship` baseline checks (branch policy, remote default branch, persona crew when configured) (D-012, TASK-045).
@@ -61,7 +62,7 @@ State at handoff — clean, ready to start the next feature from `develop`:
 Next feature candidates (each its own TASK, smallest first):
 
 1. `task sync --non-interactive`: accept the flag like `task add` / `task ship` (sync never prompts, but scripts that pass it fail with "unknown option").
-2. `task ship -m` trailers on the metadata commit: the "mark shipped" commit (and the open-PR / new-cycle metadata commits) uses a fixed message (`docsCommitMessageFor`, `src/commands/task-ship.ts`), so the body and trailers of `-m` (e.g. `Co-Authored-By`) are missing there. Carry the trailers of `-m` over to the metadata commit (or accept trailers separately).
+2. `task ship -m` trailers on the metadata commit (also requested as a config option, e.g. a `Co-Authored-By` trailer for every generated commit): the "mark shipped" commit (and the open-PR / new-cycle metadata commits) uses a fixed message (`docsCommitMessageFor`, `src/commands/task-ship.ts`), so the body and trailers of `-m` (e.g. `Co-Authored-By`) are missing there. Carry the trailers of `-m` over to the metadata commit (or accept trailers separately).
 3. `findMergeRequestByBranches` error contract: it returns the helper's promise without `await` inside its `try`, so lookup errors escape the intended `catch` (`task ship`, `task del`; `task release` already handles it). Decide per caller: swallow vs. surface.
 4. Repository lock without design-value timeouts (D-006 / D-009): event-based wait (file watch) instead of the 50 ms retry, process start time for pid reuse instead of `staleSeconds` age, explicit handling of other-host / unreadable locks.
 5. Normalise the status words of TASK-001…017 (`done` / `Review` → `Shipped`) after checking each was merged.
