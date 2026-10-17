@@ -14,21 +14,34 @@ export interface MergeGateConfig {
   readonly allowNoChecks: boolean;
 }
 
+/**
+ * Job execution limits of GitHub Actions (docs.github.com/actions/reference/limits):
+ * "up to 6 hours" per job on GitHub-hosted runners, "up to 5 days" on self-hosted ones.
+ * A pending check cannot legitimately outlast its job, so these bound the wait.
+ */
+const GITHUB_HOSTED_JOB_LIMIT_SECONDS = 6 * 60 * 60;
+const SELF_HOSTED_JOB_LIMIT_SECONDS = 5 * 24 * 60 * 60;
+
 export const MERGE_GATE_DEFAULTS: MergeGateConfig = {
   requiredChecks: [],
   releaseRequiredChecks: [],
-  waitTimeoutSeconds: 900,
+  // The wait ends as soon as the host reports every check finished; this only bounds a
+  // check that never finishes. Self-hosted runners: raise it up to the 5-day job limit.
+  waitTimeoutSeconds: GITHUB_HOSTED_JOB_LIMIT_SECONDS,
   // Same default as `gh pr checks --watch --interval` (cli.github.com/manual/gh_pr_checks).
   pollIntervalSeconds: 10,
-  emptyRollupGraceSeconds: 30,
+  // No grace by default: CI outside GitHub Actions is awaited by name via `requiredChecks`
+  // (like required status checks in branch protection), not by guessing how long it takes
+  // to report.
+  emptyRollupGraceSeconds: 0,
   allowNoChecks: false,
 };
 
-/** Inclusive bounds for the numeric settings (seconds). */
+/** Inclusive bounds for the numeric settings (seconds); cross-checks below keep them ≤ the wait. */
 export const MERGE_GATE_LIMITS = {
-  waitTimeoutSeconds: { min: 1, max: 7_200 },
-  pollIntervalSeconds: { min: 1, max: 300 },
-  emptyRollupGraceSeconds: { min: 0, max: 600 },
+  waitTimeoutSeconds: { min: 1, max: SELF_HOSTED_JOB_LIMIT_SECONDS },
+  pollIntervalSeconds: { min: 1, max: SELF_HOSTED_JOB_LIMIT_SECONDS },
+  emptyRollupGraceSeconds: { min: 0, max: SELF_HOSTED_JOB_LIMIT_SECONDS },
 } as const;
 
 const KNOWN_KEYS: ReadonlySet<keyof VibeopsMergeConfig> = new Set([
@@ -118,6 +131,11 @@ export function parseMergeConfig(raw: unknown): MergeGateConfig {
       throw new MergeConfigError("`allowNoChecks` must be true or false.");
     }
     cfg.allowNoChecks = o.allowNoChecks;
+  }
+  if (cfg.emptyRollupGraceSeconds > cfg.waitTimeoutSeconds) {
+    throw new MergeConfigError(
+      "`emptyRollupGraceSeconds` must not exceed `waitTimeoutSeconds`.",
+    );
   }
   if (cfg.pollIntervalSeconds > cfg.waitTimeoutSeconds) {
     throw new MergeConfigError(

@@ -257,9 +257,10 @@ test("GitLab pipeline mapping: manual / unknown are red, scheduled is pending", 
 
 test("parseMergeConfig: absent block → documented defaults", () => {
   assert.deepEqual(parseMergeConfig(undefined), MERGE_GATE_DEFAULTS);
-  assert.equal(MERGE_GATE_DEFAULTS.waitTimeoutSeconds, 900);
+  // GitHub-hosted job limit (6 h); no empty-rollup grace (external CI → requiredChecks).
+  assert.equal(MERGE_GATE_DEFAULTS.waitTimeoutSeconds, 21_600);
   assert.equal(MERGE_GATE_DEFAULTS.pollIntervalSeconds, 10);
-  assert.equal(MERGE_GATE_DEFAULTS.emptyRollupGraceSeconds, 30);
+  assert.equal(MERGE_GATE_DEFAULTS.emptyRollupGraceSeconds, 0);
   assert.equal(MERGE_GATE_DEFAULTS.allowNoChecks, false);
 });
 
@@ -292,12 +293,13 @@ test("parseMergeConfig: malformed blocks throw MergeConfigError naming the key",
     [{ requiredChecks: ["build", "  "] }, /`requiredChecks\[1\]` must be a non-empty string/],
     [{ releaseRequiredChecks: {} }, /`releaseRequiredChecks` must be an array/],
     [{ requiredCheck: ["build"] }, /unknown key `requiredCheck`/],
-    [{ waitTimeoutSeconds: 0 }, /`waitTimeoutSeconds` must be an integer between 1 and 7200/],
+    [{ waitTimeoutSeconds: 0 }, /`waitTimeoutSeconds` must be an integer between 1 and 432000/],
     [{ waitTimeoutSeconds: 1.5 }, /`waitTimeoutSeconds`/],
     [{ waitTimeoutSeconds: "60" }, /`waitTimeoutSeconds`/],
-    [{ waitTimeoutSeconds: 99999 }, /`waitTimeoutSeconds`/],
-    [{ pollIntervalSeconds: 0 }, /`pollIntervalSeconds` must be an integer between 1 and 300/],
-    [{ emptyRollupGraceSeconds: -1 }, /`emptyRollupGraceSeconds` must be an integer between 0 and 600/],
+    [{ waitTimeoutSeconds: 432_001 }, /`waitTimeoutSeconds`/],
+    [{ pollIntervalSeconds: 0 }, /`pollIntervalSeconds` must be an integer between 1 and 432000/],
+    [{ emptyRollupGraceSeconds: -1 }, /`emptyRollupGraceSeconds` must be an integer between 0 and 432000/],
+    [{ waitTimeoutSeconds: 10, emptyRollupGraceSeconds: 20 }, /`emptyRollupGraceSeconds` must not exceed `waitTimeoutSeconds`/],
     [{ waitTimeoutSeconds: 10, pollIntervalSeconds: 20 }, /must not exceed `waitTimeoutSeconds`/],
     [{ allowNoChecks: "yes" }, /`allowNoChecks` must be true or false/],
   ];
@@ -1039,4 +1041,28 @@ test("stale base: without requireBaseInHead (task release) the check is not appl
   queueViews([green(head)]);
   await merge({ cwd: work });
   assert.equal(mergeCalls().length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// After `gh pr merge` returns, the merge is confirmed by ONE read: GitHub's / GitLab's
+// merge APIs answer synchronously (no polling for a result that is already known).
+// ---------------------------------------------------------------------------
+
+test("merge verify: one read — merged PR passes, open PR is reported without polling", async () => {
+  const { assertMergeRequestMerged } = await import("../dist/lib/task-merge-verify.js");
+  const verify = () =>
+    assertMergeRequestMerged({ cwd: process.cwd(), host: "github", url: URL, integrationBranch: "develop" });
+
+  queueViews([ghPr([], { state: "MERGED", mergedAt: "2026-10-17T00:00:00Z" })]);
+  assert.deepEqual(await verify(), { ok: true });
+  assert.equal(viewCount(), 1);
+
+  writeFileSync(join(stateDir, "counter"), "0");
+  queueViews([ghPr([], { state: "OPEN" })]);
+  const started = Date.now();
+  const r = await verify();
+  assert.equal(r.ok, false);
+  assert.match(r.message, /is open, not merged into develop \(merge queue or auto-merge pending\?\)/);
+  assert.equal(viewCount(), 1, "read once");
+  assert.ok(Date.now() - started < 5_000, "no waiting");
 });

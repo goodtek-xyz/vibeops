@@ -12,6 +12,7 @@
 - **3.0.0 (breaking):** merge gate — CheckRun/StatusContext classification fix, fail-closed (incl. no checks unless `merge.allowNoChecks`), strict `merge` config, SHA-pinned merges; requires gh ≥ 2.13.0 (TASK-020).
 - **3.1.1:** `task ship` commits staged / unstaged deletions and renames (`porcelain=v1 -z`, `git add -A` only for unstaged paths) (TASK-022).
 - **3.1.2:** merge gate waits for the PR's own GitHub Actions runs (expected `pull_request` workflows + all runs for the head SHA), head re-read before merge (TASK-024); CI on PRs + `main` (lint, typecheck, build, tests, smoke, gitleaks), npm Trusted Publishing workflow, OSS hygiene (TASK-023).
+- **Unreleased:** time values from official docs (D-009): merge wait default 21600 s, no empty-rollup grace, no post-merge polling (TASK-033). Lock values (D-006) still open.
 - **3.1.7:** `ship --new-cycle` ships committed-but-unmerged work and keeps `-m` (TASK-032).
 - **3.1.7:** PR body lists only this TASK's changes (against the fetched `<remote>/<base>`) (TASK-031).
 - **3.1.6:** `task release` reuses an open release PR; unreadable Git Context stops `task ship` / `task add` with the line named (TASK-030).

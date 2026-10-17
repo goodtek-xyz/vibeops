@@ -11,14 +11,6 @@ export type BaseInHeadResult =
   | { readonly ok: true }
   | { readonly ok: false; readonly problem: string };
 
-/**
- * The MR/PR head must contain the current tip of its base branch.
- *
- * A head that does not (base moved, or the branch was rebuilt on a stale base,
- * e.g. `git reset --soft <old base>` + commit) can silently revert work merged
- * into the base since; a squash merge then lands that revert. Fetches the base
- * branch and the head commit first; any fetch / read failure fails closed.
- */
 /** Fetch `<remote>/<baseBranch>` into its remote-tracking ref and return that ref. Throws on failure. */
 export async function fetchBaseBranch(
   cwd: string,
@@ -30,6 +22,14 @@ export async function fetchBaseBranch(
   return baseRef;
 }
 
+/**
+ * The MR/PR head must contain the current tip of its base branch.
+ *
+ * A head that does not (base moved, or the branch was rebuilt on a stale base,
+ * e.g. `git reset --soft <old base>` + commit) can silently revert work merged
+ * into the base since; a squash merge then lands that revert. Fetches the base
+ * branch and the head commit first; any fetch / read failure fails closed.
+ */
 export async function checkBaseInHead(opts: BaseInHeadOptions): Promise<BaseInHeadResult> {
   const { cwd, remote, baseBranch, headSha } = opts;
   const baseRef = `refs/remotes/${remote}/${baseBranch}`;
