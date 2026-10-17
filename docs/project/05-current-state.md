@@ -12,6 +12,7 @@
 - **3.0.0 (breaking):** merge gate — CheckRun/StatusContext classification fix, fail-closed (incl. no checks unless `merge.allowNoChecks`), strict `merge` config, SHA-pinned merges; requires gh ≥ 2.13.0 (TASK-020).
 - **3.1.1:** `task ship` commits staged / unstaged deletions and renames (`porcelain=v1 -z`, `git add -A` only for unstaged paths) (TASK-022).
 - **3.1.2:** merge gate waits for the PR's own GitHub Actions runs (expected `pull_request` workflows + all runs for the head SHA), head re-read before merge (TASK-024); CI on PRs + `main` (lint, typecheck, build, tests, smoke, gitleaks), npm Trusted Publishing workflow, OSS hygiene (TASK-023).
+- **Unreleased:** `ship --new-cycle` records the base it starts from as Base Commit (TASK-050).
 - **Unreleased:** `task merge` updates a stale PR branch on GitHub (update-branch, no force push) and re-checks (D-014, TASK-048).
 - **Unreleased:** `vibeops status` shows the baseline (checks, crew commit, other remote branches) (TASK-047).
 - **Unreleased:** `task release --tag` tags the release merge commit (D-013, TASK-046).
@@ -65,8 +66,7 @@ Next feature candidates (each its own TASK, smallest first):
 2. `task ship -m` trailers on the metadata commit (also requested as a config option, e.g. a `Co-Authored-By` trailer for every generated commit): the "mark shipped" commit (and the open-PR / new-cycle metadata commits) uses a fixed message (`docsCommitMessageFor`, `src/commands/task-ship.ts`), so the body and trailers of `-m` (e.g. `Co-Authored-By`) are missing there. Carry the trailers of `-m` over to the metadata commit (or accept trailers separately).
 3. `findMergeRequestByBranches` error contract: it returns the helper's promise without `await` inside its `try`, so lookup errors escape the intended `catch` (`task ship`, `task del`; `task release` already handles it). Decide per caller: swallow vs. surface.
 4. Repository lock without design-value timeouts (D-006 / D-009): event-based wait (file watch) instead of the 50 ms retry, process start time for pid reuse instead of `staleSeconds` age, explicit handling of other-host / unreadable locks.
-5. `task ship --new-cycle` records the wrong Base Commit: `refreshGitContextBaseCommit` (`src/lib/task-reship.ts`) writes the task branch `HEAD` after the follow-up commit — the TASK's own feature commit — instead of the base it starts from (`<remote>/<base>` after the integration merge, or their merge base). Check: after a new cycle, compare the TASK file's Base Commit with `git rev-parse <remote>/<base>`.
-6. Normalise the status words of TASK-001…017 (`done` / `Review` → `Shipped`) after checking each was merged.
+5. Normalise the status words of TASK-001…017 (`done` / `Review` → `Shipped`) after checking each was merged.
 
 Owner decisions pending:
 

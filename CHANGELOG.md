@@ -4,6 +4,10 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- **`task ship --new-cycle` recorded the TASK's own commit as Base Commit** (the task branch HEAD after the follow-up commit). It now records where the cycle starts on the base: the merge base of the task branch and the freshly fetched `<remote>/<base>` (TASK-050).
+
 ### Added
 
 - **`task merge` updates a stale PR branch** (GitHub, `merge.updateBranch`, default on): update-branch merges the base into the PR branch on the host (no force push), the gate waits for the new head's CI and re-checks with the same rules, repeating while bot PRs keep moving the base, within `waitTimeoutSeconds`; conflicts stop. `task ship`'s push-rejected hint now says merge (`git pull --no-rebase`), never rebase + force-push (D-014, TASK-048).
