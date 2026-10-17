@@ -41,6 +41,10 @@ A consumer PR whose branch had been rebuilt with `git reset --soft` on a stale `
 
 Waits, timeouts and intervals are taken from the documentation of the system they wait for, or replaced by the system's own signal; values without such a basis are not used. Applied: merge-gate wait bound = GitHub Actions job limits (6 h hosted default, 5 days max); no empty-rollup grace by default (external CI is named in `requiredChecks`, as with required status checks); no polling after `gh pr merge` / `glab mr merge` (synchronous merge APIs); Codex token leeway 120 s within RFC 7519 §4.1.4 ("usually no more than a few minutes"); manual npm publish verification with exponential back-off + jitter within a few-minute budget (npm's own notice). Not yet applied: the repository lock (D-006) still uses design values (wait 60 s, stale 600 s, breaker 30 s / 60 s, 50 ms retry) — replacing them (event-based wait, process start time for pid reuse) is a lock redesign and has its own TASK.
 
+## D-010 · This repository uses `develop` + `main` (2026-10-17)
+
+The maintainer organization standardised branches for all its repositories: only `develop` (integration, default branch) and `main` (production) are long-lived, and `main` only receives releases through `vibeops task release`. This repository followed a trunk policy (`main` only, `release/X.Y.Z` PRs). Decision (owner): adopt the standard here too — `.vibeops.json` `integrationBranch: develop`, `productionBranch: main`; CI runs on pushes to both; releases are a release-prep TASK on `develop`, then `task release`, then the `vX.Y.Z` tag on the `main` merge commit (`publish.yml` unchanged: the tag must be on `main`). This also exercises VibeOps' own GitFlow path on every release.
+
 <!--
 Add subsequent decisions in the `D-NNN · one-line summary` form.
 Keep each entry short — one paragraph of "why" and "consequence" only.

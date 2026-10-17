@@ -47,7 +47,7 @@ Also: move the `checkBaseInHead` doc comment back above its function (displaced 
 
 ## Git Context
 
-- Base Branch: `main`
+- Base Branch: `develop`
 - Base Commit: `1d4447471616fd1cc36076d67776517fce3c7c99`
 - Task Branch: `task/033-time-values-need-an-official-basis`
 - Started At: `2026-10-17T03:05:06.066Z`

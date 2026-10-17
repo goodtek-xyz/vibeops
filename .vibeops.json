@@ -22,11 +22,17 @@
   "git": {
     "remote": "origin",
     "host": "github",
-    "integrationBranch": "main",
+    "integrationBranch": "develop",
     "productionBranch": "main"
   },
   "merge": {
     "requiredChecks": [
+      "Verify · node 20",
+      "Verify · node 22",
+      "Verify · node 24",
+      "Secret scan · gitleaks"
+    ],
+    "releaseRequiredChecks": [
       "Verify · node 20",
       "Verify · node 22",
       "Verify · node 24",
