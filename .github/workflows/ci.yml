@@ -1,4 +1,4 @@
-# CI for pull requests and main.
+# CI for pull requests and the long-lived branches (develop, main).
 #
 # Public repository: jobs run only on GitHub-hosted runners, so pull requests
 # from forks never execute on maintainer-owned machines. The token is read-only.
@@ -8,7 +8,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [develop, main]
 
 permissions:
   contents: read

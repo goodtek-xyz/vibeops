@@ -19,7 +19,7 @@ import {
   isGitRepository,
 } from "../lib/git.js";
 import { formatGitPolicySummary, askGitPolicy, parseGitPolicyArg, resolvePreset } from "../lib/git-policy.js";
-import { ensureOriginRemote } from "../lib/git-remote.js";
+import { ensureOriginRemote, setRemoteDefaultBranch } from "../lib/git-remote.js";
 import {
   askInitClients,
   formatClientsList,
@@ -386,6 +386,22 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
         await gitCheckout(projectRoot, gitConfig.integrationBranch);
         await gitPush(projectRoot, remoteName, gitConfig.integrationBranch, true);
         log.ok(`pushed ${gitConfig.integrationBranch} → ${remoteName}`);
+        // A repository init just created defaults to the integration branch, so PRs and
+        // clones start from it; an existing repository's setting is left to its owner.
+        if (remote.created === true) {
+          if (await setRemoteDefaultBranch(projectRoot, gitConfig.host, gitConfig.integrationBranch)) {
+            log.ok(`default branch → ${gitConfig.integrationBranch}`);
+          } else {
+            log.warn(`Could not set the default branch to ${gitConfig.integrationBranch}.`);
+            log.info(
+              dim(
+                gitConfig.host === "gitlab"
+                  ? `  glab api --method PUT projects/:id --raw-field default_branch=${gitConfig.integrationBranch}`
+                  : `  gh repo edit --default-branch ${gitConfig.integrationBranch}`,
+              ),
+            );
+          }
+        }
       }
       pushedBaseline = true;
     } catch (e) {

@@ -37,6 +37,14 @@ Consumers run several `git worktree` checkouts of one repo in parallel. Git refu
 
 A consumer PR whose branch had been rebuilt with `git reset --soft` on a stale `origin/develop` was squash-merged after `develop` had moved and silently reverted 27 files of other TASKs; green CI did not catch it because the PR's own tree was consistent. Options considered: diffing the PR against files changed on the base since the TASK's Base Commit (catches only exact reverts, needs heuristics); relying on host branch protection "require branches to be up to date" (not available on every plan). Decision: before merging, `task merge` fetches `<remote>/<base>` and the approved head commit and refuses unless `git merge-base --is-ancestor <remote>/<base> <head>` holds; the error names how many commits the head is behind and how to update. Fetch errors refuse. Consequence: after another PR lands, each open task branch must merge the base (and pass CI) before it can be merged — the same rule as "require up to date" branch protection. `task release` is exempt (merge-commit releases).
 
+## D-009 · Time values need an official basis (3.1.8+)
+
+Waits, timeouts and intervals are taken from the documentation of the system they wait for, or replaced by the system's own signal; values without such a basis are not used. Applied: merge-gate wait bound = GitHub Actions job limits (6 h hosted default, 5 days max); no empty-rollup grace by default (external CI is named in `requiredChecks`, as with required status checks); no polling after `gh pr merge` / `glab mr merge` (synchronous merge APIs); Codex token leeway 120 s within RFC 7519 §4.1.4 ("usually no more than a few minutes"); manual npm publish verification with exponential back-off + jitter within a few-minute budget (npm's own notice). Not yet applied: the repository lock (D-006) still uses design values (wait 60 s, stale 600 s, breaker 30 s / 60 s, 50 ms retry) — replacing them (event-based wait, process start time for pid reuse) is a lock redesign and has its own TASK.
+
+## D-010 · This repository uses `develop` + `main` (2026-10-17)
+
+The maintainer organization standardised branches for all its repositories: only `develop` (integration, default branch) and `main` (production) are long-lived, and `main` only receives releases through `vibeops task release`. This repository followed a trunk policy (`main` only, `release/X.Y.Z` PRs). Decision (owner): adopt the standard here too — `.vibeops.json` `integrationBranch: develop`, `productionBranch: main`; CI runs on pushes to both; releases are a release-prep TASK on `develop`, then `task release`, then the `vX.Y.Z` tag on the `main` merge commit (`publish.yml` unchanged: the tag must be on `main`). This also exercises VibeOps' own GitFlow path on every release.
+
 <!--
 Add subsequent decisions in the `D-NNN · one-line summary` form.
 Keep each entry short — one paragraph of "why" and "consequence" only.

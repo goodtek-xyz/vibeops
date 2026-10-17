@@ -141,6 +141,7 @@ vibeops llm use auto   # auto | codex-oauth | cursor-agent | openai
 ## Flags (common)
 
 - **`init`**: `--clients`, `--yes`, `--dry-run`, `--force`, `--git`, `--initial-commit`, `--git-policy gitflow|trunk`, `--integration-branch`, `--production-branch`, `--git-host github|gitlab`, `--allow-no-remote`, `--cwd`
+  When `init` creates the repository on GitHub / GitLab (interactive), it pushes `main` and the integration branch and makes the integration branch (`develop` with the GitFlow preset) the repository's default branch; an existing repository's default branch is not changed.
 - **`task add`**: `--dry-run`, `--non-interactive --idea "…"`
 - **`task del`**: `--dry-run`, `--force`, `--no-remote-delete`, `--no-close-mr`
 - **`task ship`**: `-m/--message`, `--new-cycle`, `--no-commit`, `--dry-run`, `--no-pr`, `--non-interactive`, `--allow-open-mr`, `--no-integrate`, `--recreate-branch`, `--skip-llm`
@@ -220,8 +221,9 @@ Before calling `gh pr merge` / `glab mr merge`:
 - **GitLab:** the MR head pipeline must be `success` or `skipped`. `failed`, `canceled`, `manual` and unknown statuses refuse; `created` / `pending` / `running` / `scheduled` / … wait.
 - **Host output is verified:** if `gh pr view` lacks or has empty `state`, `mergeable`, `headRefOid`, or `statusCheckRollup` is not a list (GitLab: `state`, `sha`, `merge_status`, `detailed_merge_status`, `head_pipeline`), the merge is refused.
 - **Failed check → refuse immediately** (exit code 1, checks named). **Pending → wait** up to `waitTimeoutSeconds`, then refuse. There is no override flag: fix CI (re-run `task ship`) and rerun `task merge`.
-- **No checks at all → refuse** unless `allowNoChecks: true`. "No checks" means: empty rollup, no GitHub Actions run and no expected workflow for the head commit (GitLab: no pipeline). For CI outside GitHub Actions (commit statuses / check apps), the empty list is re-polled for `emptyRollupGraceSeconds` first; list such checks in `requiredChecks` so the gate waits for them by name.
-- **Waiting** polls the host (`gh pr view` + the Actions REST API) every `pollIntervalSeconds` (default 10 s, the default of `gh pr checks --watch`) until the state changes, bounded by `waitTimeoutSeconds` (default 900 s). Host read errors back off exponentially with jitter (capped at 60 s, GitHub's guidance for rate-limited clients).
+- **No checks at all → refuse** unless `allowNoChecks: true`. "No checks" means: empty rollup, no GitHub Actions run and no expected workflow for the head commit (GitLab: no pipeline). For CI outside GitHub Actions (commit statuses / check apps), list such checks in `requiredChecks` so the gate waits for them by name (`emptyRollupGraceSeconds`, default 0, can re-poll an empty list first).
+- **Waiting** polls the host (`gh pr view` + the Actions REST API) every `pollIntervalSeconds` (default 10 s, the default of `gh pr checks --watch`) until the state changes, bounded by `waitTimeoutSeconds` (default 21600 s, the GitHub-hosted job limit). Host read errors back off exponentially with jitter (capped at 60 s, GitHub's guidance for rate-limited clients).
+- **After the merge:** `gh pr merge` / `glab mr merge` return the result synchronously (GitHub `merged: true`, GitLab `state: "merged"`), so VibeOps reads the PR/MR once to confirm. Not merged at that point (merge queue / auto-merge) is reported, not waited for.
 - **The merge is pinned to the checked commit:** right before merging the gate re-reads the PR head; if it moved, the new head is evaluated from scratch. The merge itself uses `gh pr merge --match-head-commit <sha>` (requires **gh ≥ 2.13.0**) / `glab mr merge --auto-merge=false --sha <sha>` (verified with glab 1.106), so a push between the last check and the merge makes the host refuse. A GitLab `405` re-runs the gate and retries once with the same flags.
 - **Unreadable Git Context stops `task ship` / `task add`:** a TASK file whose `## Git Context` cannot be read (e.g. an edit left `## ## Git Context`) makes `task ship` exit 1 before committing or pushing, naming the line; `task add` refuses to "resume" such a TASK (it would write a second section) and names the file and line.
 - **`task merge` refuses a stale base:** the head commit the gate approved must contain the current `<remote>/<base>` (`git merge-base --is-ancestor`, after fetching the base branch and the head commit). A head that does not — the base moved since the branch was pushed, or the branch was rebuilt on an old base (e.g. `git reset --soft <stale origin/develop>` + commit) — can silently revert work merged into the base since, and a squash merge lands that revert. Bring the branch up to date (`git fetch` + `git merge <remote>/<base>`, test, `task ship`), wait for CI, then rerun `task merge`. A fetch failure refuses (fail closed). `task release` does not apply this check (with merge-commit releases the production branch is normally not an ancestor of the integration branch).
@@ -233,9 +235,9 @@ Before calling `gh pr merge` / `glab mr merge`:
   "merge": {
     "requiredChecks": ["build", "lint*"],
     "releaseRequiredChecks": ["release smoke"],
-    "waitTimeoutSeconds": 900,
+    "waitTimeoutSeconds": 21600,
     "pollIntervalSeconds": 10,
-    "emptyRollupGraceSeconds": 30,
+    "emptyRollupGraceSeconds": 0,
     "allowNoChecks": false
   }
 }
@@ -245,9 +247,9 @@ Before calling `gh pr merge` / `glab mr merge`:
 |-----|---------|---------|---------|
 | `requiredChecks` | `[]` | array of non-empty strings | Checks that must be present and green for `task merge`. A missing one refuses: `required check "X" never ran`. |
 | `releaseRequiredChecks` | `[]` | array of non-empty strings | Same for `task release` (integration → production). Shown by `task release --dry-run`. |
-| `waitTimeoutSeconds` | `900` | integer 1–7200 | Max wait for pending checks. |
-| `pollIntervalSeconds` | `10` | integer 1–300, ≤ timeout | Poll interval while waiting (same default as `gh pr checks --watch`). |
-| `emptyRollupGraceSeconds` | `30` | integer 0–600 | Only when no GitHub Actions workflow is expected: how long an empty check list is re-polled before "no checks" applies (time for external CI to report). |
+| `waitTimeoutSeconds` | `21600` | integer 1–432000 | Upper bound for pending checks. The wait ends as soon as every check finished; the bound only stops a check that never does. Default = the 6-hour job limit of GitHub-hosted runners; self-hosted runners allow up to 5 days ([GitHub Actions limits](https://docs.github.com/actions/reference/limits)). |
+| `pollIntervalSeconds` | `10` | integer ≥ 1, ≤ timeout | Poll interval while waiting (same default as `gh pr checks --watch`). |
+| `emptyRollupGraceSeconds` | `0` | integer ≥ 0, ≤ timeout | Only when no GitHub Actions workflow is expected: how long an empty check list is re-polled before "no checks" applies. Default `0`: name CI outside GitHub Actions in `requiredChecks` so the gate waits for it by name, instead of guessing how long it takes to report. |
 | `allowNoChecks` | `false` | boolean | Merge a PR that has no checks at all (repo without CI). Prints one warning per such merge. |
 
 - Check names are exact (`CheckRun.name` / `StatusContext.context`) or a `*` glob (`"lint*"`, `"* · linux"`). Required checks are GitHub-only; GitLab gates on the head pipeline.
