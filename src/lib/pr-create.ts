@@ -448,33 +448,6 @@ export async function readMergeRequestDetails(
   };
 }
 
-export interface WaitForMergeRequestMergedOptions {
-  readonly timeoutMs?: number;
-  readonly intervalMs?: number;
-}
-
-/** Poll host until MR/PR state is merged (or timeout). */
-export async function waitForMergeRequestMerged(
-  cwd: string,
-  host: GitHost,
-  url: string,
-  options: WaitForMergeRequestMergedOptions = {},
-): Promise<boolean> {
-  const timeoutMs = options.timeoutMs ?? 120_000;
-  const intervalMs = options.intervalMs ?? 2_000;
-  const deadline = Date.now() + timeoutMs;
-
-  while (Date.now() < deadline) {
-    const details = await getMergeRequestDetails(cwd, host, url);
-    if (details?.state === "merged" && details.mergedAt !== null) {
-      return true;
-    }
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
-  }
-
-  return false;
-}
-
 function mergeRequestReadinessFromDetails(
   details: MergeRequestDetails | null,
 ): MergeRequestReadiness | null {

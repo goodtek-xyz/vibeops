@@ -178,7 +178,9 @@ export async function refreshCodexOAuthTokens(refreshToken: string): Promise<Cod
 
 /**
  * Returns a usable access token, refreshing and persisting to auth.json when
- * the JWT is near expiry (same pattern as Hermes `resolve_codex_runtime_credentials`).
+ * the JWT is near expiry. `skewSeconds` is clock-skew leeway on the `exp` claim:
+ * RFC 7519 §4.1.4 allows "some small leeway, usually no more than a few minutes, to
+ * account for clock skew" (rfc-editor.org/rfc/rfc7519#section-4.1.4); 120 s stays within it.
  */
 export async function resolveCodexOAuthAccessToken(
   skewSeconds = 120,

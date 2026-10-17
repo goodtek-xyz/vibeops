@@ -172,19 +172,32 @@ npm "${PUBLISH_ARGS[@]}"
 
 if [[ "$DRY_RUN" -eq 0 ]]; then
   echo "[npm-publish] verifying ${NAME}@${VERSION}…"
+  # npm reports a new version "may take a few minutes to become available" (npm publish
+  # notice). Exponential back-off with jitter, bounded by a total budget of 5 minutes.
+  # `--prefer-online` skips npm's local metadata cache (docs.npmjs.com/cli/using-npm/config#prefer-online).
   verified=0
-  for i in 1 2 3 4 5 6 7 8 9 10; do
-    if published="$(npm view "${NAME}@${VERSION}" version 2>/dev/null)" && [[ "$published" == "$VERSION" ]]; then
+  delay=5
+  waited=0
+  budget=300
+  while :; do
+    if published="$(npm view "${NAME}@${VERSION}" version --prefer-online 2>/dev/null)" && [[ "$published" == "$VERSION" ]]; then
       verified=1
       break
     fi
-    echo "[npm-publish] waiting for registry (attempt ${i}/10)…" >&2
-    sleep 2
+    if (( waited >= budget )); then
+      break
+    fi
+    step=$(( delay + RANDOM % (delay / 2 + 1) ))
+    (( step > budget - waited )) && step=$(( budget - waited ))
+    echo "[npm-publish] waiting for registry (${waited}s of ${budget}s)…" >&2
+    sleep "$step"
+    waited=$(( waited + step ))
+    delay=$(( delay * 2 ))
   done
   if [[ "$verified" -ne 1 ]]; then
     echo "[npm-publish] error: ${NAME}@${VERSION} not visible on registry yet." >&2
-    echo "[npm-publish] latest on registry: $(npm view "${NAME}" version 2>/dev/null || echo unknown)" >&2
-    echo "[npm-publish] retry: npm view ${NAME}@${VERSION} version" >&2
+    echo "[npm-publish] latest on registry: $(npm view "${NAME}" version --prefer-online 2>/dev/null || echo unknown)" >&2
+    echo "[npm-publish] the publish itself succeeded; check later: npm view ${NAME}@${VERSION} version --prefer-online" >&2
     exit 1
   fi
   echo "[npm-publish] ok: ${NAME}@${VERSION}"
