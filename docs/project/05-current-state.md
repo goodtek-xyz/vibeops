@@ -4,7 +4,7 @@
 
 ## Stage
 
-- **Package:** `@goodtek/vibeops` **3.3.0** (`task add --repair-baseline` for baseline repair TASKs).
+- **Package:** `@goodtek/vibeops` **3.3.1** (`init` lists the coding agents as Claude Code, Codex CLI, Cursor).
 - **CLI lifecycle:** `init` · `task add` · `task del` · **`task ship` (state-aware)** · `task merge` · `task sync` · `pull` · `task release` · **`status` (Now/Next)** · `llm`.
 - **Breaking (2.5.0):** `task reship` removed — use `task ship` / `--new-cycle`.
 - **2.5.1:** `task add` preflight + sync diagnosis + incomplete resume.
@@ -12,6 +12,7 @@
 - **3.0.0 (breaking):** merge gate — CheckRun/StatusContext classification fix, fail-closed (incl. no checks unless `merge.allowNoChecks`), strict `merge` config, SHA-pinned merges; requires gh ≥ 2.13.0 (TASK-020).
 - **3.1.1:** `task ship` commits staged / unstaged deletions and renames (`porcelain=v1 -z`, `git add -A` only for unstaged paths) (TASK-022).
 - **3.1.2:** merge gate waits for the PR's own GitHub Actions runs (expected `pull_request` workflows + all runs for the head SHA), head re-read before merge (TASK-024); CI on PRs + `main` (lint, typecheck, build, tests, smoke, gitleaks), npm Trusted Publishing workflow, OSS hygiene (TASK-023).
+- **3.3.1:** `init` lists the coding agents as Claude Code, Codex CLI, Cursor (Cursor still pre-checked) (TASK-054).
 - **3.3.0:** `task add --repair-baseline` (D-015, TASK-052).
 - **3.2.0:** `ship --new-cycle` records the base it starts from as Base Commit (TASK-050).
 - **3.2.0:** `task merge` updates a stale PR branch on GitHub (update-branch, no force push) and re-checks (D-014, TASK-048).
@@ -45,14 +46,14 @@
 
 ## Next
 
-- Consumers: `npm i -g @goodtek/vibeops@3.3.0` (or `volta install @goodtek/vibeops@3.3.0`). Repos without CI: `"merge": {"allowNoChecks": true}`.
+- Consumers: `npm i -g @goodtek/vibeops@3.3.1` (or `volta install @goodtek/vibeops@3.3.1`). Repos without CI: `"merge": {"allowNoChecks": true}`.
 - Maintainers: TASK PRs → `develop`; release = release-prep TASK on `develop` → `vibeops task release --tag` (develop → main after its CI, then tag `vX.Y.Z` on the merge commit) → `publish.yml` publishes via npm Trusted Publishing (no token; 09-deployment.md). Manual `pnpm publish:npm` is a fallback only.
 
 ## Handoff (2026-10-17)
 
 State at handoff — clean, ready to start the next feature from `develop`:
 
-- Released: `@goodtek/vibeops` **3.3.0** (via `task release --tag`) on npm (`latest`, SLSA provenance); each release is tagged `vX.Y.Z` on its release merge commit on `main`, published by `publish.yml` (Trusted Publishing, connection *Valid*). Releases go through `develop → main` (D-010; the first was 3.1.8).
+- Released: `@goodtek/vibeops` **3.3.1** (via `task release --tag`) on npm (`latest`, SLSA provenance); each release is tagged `vX.Y.Z` on its release merge commit on `main`, published by `publish.yml` (Trusted Publishing, connection *Valid*). Releases go through `develop → main` (D-010; the first was 3.1.8).
 - Branches: `develop` (default, integration) and `main` (releases only). No other branches and no worktrees.
 - Open PRs: only Dependabot major-version PRs, left open on purpose (each needs its own TASK). Dependabot minor / patch groups are merged after CI (#34 eslint, #35 @inquirer/prompts).
   - #36 `@types/node` 20 → 26: CI green, but the types must follow the lowest supported Node (`engines.node` `>=20`); keep 20.x (ignore majors) unless the Node floor moves.

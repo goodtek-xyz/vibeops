@@ -4,6 +4,12 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 3.3.1 - 2026-10-18
+
+### Changed
+
+- **`init` lists the coding agents as Claude Code, Codex CLI, Cursor** (was Cursor, Claude Code, Codex) — in the prompt, the `init` / `--clients` help, the `--clients` error messages and the README. Cursor stays the pre-checked default. The selection keeps the prompt order, so an interactive init now writes `.vibeops.json` `clients` in that order (e.g. `["claude", "cursor"]`) and lists the shared-skill lines of the install report in it (installed files unchanged); `--clients` keeps the order typed (TASK-054).
+
 ## 3.3.0 - 2026-10-18
 
 ### Added
