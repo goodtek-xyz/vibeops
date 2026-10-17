@@ -141,3 +141,23 @@ test("cli: task add in enforce mode stops on a failing check and creates no TASK
   assert.match(out, /fix: gh repo edit --default-branch develop/);
   assert.deepEqual(readdirSync(join(dir, "docs", "tasks")), [], "no TASK created");
 });
+
+test("summarizeBaseline: checks, crew commit from SOURCE, other remote branches", async () => {
+  const { summarizeBaseline } = await import("../dist/lib/project-baseline.js");
+  const dir = repo("develop");
+  for (const b of ["task/001-x", "sync/abc", "feature-y"]) git(dir, "push", "-q", "origin", `main:${b}`);
+  mkdirSync(join(dir, ".personas", "vibe-crew"), { recursive: true });
+  writeFileSync(join(dir, ".personas", "vibe-crew", "SOURCE"), "catalog: x\npath: roles/vibe-crew\ncommit: abcdef1234567\n");
+  writeFileSync(join(dir, "AGENTS.md"), "<!-- getpersona:vibe-crew -->\n");
+  writeFileSync(join(dir, ".vibeops.json"), JSON.stringify({ name: "x", baseline: { crew: "vibe-crew" } }));
+  const s = await summarizeBaseline(dir, GITFLOW);
+  assert.equal(s.mode, "warn");
+  assert.equal(s.crew, "vibe-crew");
+  assert.equal(s.crewCommit, "abcdef1234567");
+  assert.ok(s.checks.every((c) => c.ok), JSON.stringify(s.checks));
+  assert.deepEqual(s.otherBranches, ["feature-y"]);
+  assert.equal(s.configError, null);
+
+  writeFileSync(join(dir, ".vibeops.json"), JSON.stringify({ name: "x", baseline: { mode: "loud" } }));
+  assert.match((await summarizeBaseline(dir, GITFLOW)).configError, /`mode` must be one of/);
+});

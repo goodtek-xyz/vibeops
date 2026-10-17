@@ -176,3 +176,53 @@ export async function preflightBaseline(
   }
   return true;
 }
+
+export interface BaselineSummary {
+  readonly mode: BaselineMode;
+  readonly crew: string | null;
+  /** `commit:` line of `.personas/<crew>/SOURCE` (pinned catalog commit), when present. */
+  readonly crewCommit: string | null;
+  readonly checks: readonly BaselineCheck[];
+  /** Remote branches other than integration, production, `task/*`, `sync/*`; null = unreadable. */
+  readonly otherBranches: readonly string[] | null;
+  /** Invalid `baseline` block in .vibeops.json, when it is. */
+  readonly configError: string | null;
+}
+
+/** Read-only summary for `vibeops status` (never throws). */
+export async function summarizeBaseline(
+  cwd: string,
+  git: VibeopsGitConfig,
+): Promise<BaselineSummary> {
+  let cfg = BASELINE_DEFAULTS;
+  let configError: string | null = null;
+  try {
+    cfg = await readBaselineConfig(cwd);
+  } catch (e) {
+    configError = e instanceof Error ? e.message : String(e);
+  }
+  const checks = await runBaselineChecks(cwd, git, cfg);
+  let crewCommit: string | null = null;
+  if (cfg.crew !== null) {
+    const source = await readTextOrNull(join(cwd, ".personas", cfg.crew, "SOURCE"));
+    crewCommit = source === null ? null : (/^commit:\s*(\S+)/m.exec(source)?.[1] ?? null);
+  }
+  let otherBranches: string[] | null = null;
+  try {
+    const { stdout } = await runGit(cwd, ["ls-remote", "--heads", git.remote]);
+    otherBranches = stdout
+      .split("\n")
+      .map((l) => l.split("\t")[1]?.replace(/^refs\/heads\//, "") ?? "")
+      .filter(
+        (b) =>
+          b.length > 0 &&
+          b !== git.integrationBranch &&
+          b !== git.productionBranch &&
+          !b.startsWith("task/") &&
+          !b.startsWith("sync/"),
+      );
+  } catch {
+    otherBranches = null;
+  }
+  return { mode: cfg.mode, crew: cfg.crew, crewCommit, checks, otherBranches, configError };
+}
