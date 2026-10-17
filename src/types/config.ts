@@ -49,7 +49,7 @@ export interface VibeopsConfig {
   vibeopsVersion: string;
   schemaVersion: typeof VIBEOPS_CONFIG_SCHEMA_VERSION;
   createdAt: string;
-  /** Agent packs installed by init (cursor, claude, codex). */
+  /** Agent packs installed by init (claude, codex, cursor). */
   clients: VibeopsClientId[];
   /** Written by init; required for task add/done. */
   git?: VibeopsGitConfig;

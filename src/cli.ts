@@ -31,7 +31,7 @@ program.hook("preAction", async (_thisCommand, actionCommand) => {
 
 program
   .command("init")
-  .description("Install core + agent client packs (cursor, claude, codex)")
+  .description("Install core + agent client packs (claude, codex, cursor)")
   .option("--dry-run", "Show what would be created")
   .option("--force", "Overwrite existing template files (also implied when re-initializing with --yes)")
   .option("--yes", "Re-init an existing project without prompting")
@@ -39,7 +39,7 @@ program
   .option("--name <projectName>", "Project name in .vibeops.json")
   .option(
     "--clients <list>",
-    "Agent packs: comma-separated cursor, claude, codex (required in non-interactive mode)",
+    "Agent packs: comma-separated claude, codex, cursor (required in non-interactive mode)",
   )
   .option("--git", "Initialize Git (always on; flag kept for scripts)")
   .option("--initial-commit", "Create initial commit")

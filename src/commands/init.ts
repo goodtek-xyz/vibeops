@@ -117,7 +117,7 @@ async function resolveClients(
   const fromFlag = parseClientsArg(options.clients);
   if (options.clients !== undefined && fromFlag === null) {
     log.error(
-      'Invalid --clients. Use comma-separated: cursor, claude, codex (e.g. --clients cursor,claude)',
+      'Invalid --clients. Use comma-separated: claude, codex, cursor (e.g. --clients claude,cursor)',
     );
     process.exitCode = 1;
     return null;
@@ -135,7 +135,7 @@ async function resolveClients(
   }
 
   log.error(
-    "Select at least one agent: --clients cursor,claude,codex (non-interactive mode).",
+    "Select at least one agent: --clients claude,codex,cursor (non-interactive mode).",
   );
   process.exitCode = 1;
   return null;
