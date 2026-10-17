@@ -942,3 +942,16 @@ test("new cycle with nothing new after a squash merge still says nothing to do",
   assert.equal(r.code, 0, r.out);
   assert.match(r.out, /Nothing to do/);
 });
+
+test("new cycle records the base it starts from (origin/develop after the merge) as Base Commit", () => {
+  const { b, ghEnv } = firstCycleSquashed("basecommit");
+  writeFileSync(join(b, "four.txt"), "4\n");
+  const r = newCycle(ghEnv, b, "-m", "fix: fourth");
+  assert.equal(r.code, 0, r.out);
+  git(b, "fetch", "-q", "origin");
+  const name = taskFiles(b).find((n) => !n.startsWith("TASK-001-"));
+  const ctx = readFileSync(join(b, "docs", "tasks", name), "utf8");
+  const base = /^- Base Commit: `([0-9a-f]+)`/m.exec(ctx)?.[1];
+  assert.equal(base, git(b, "rev-parse", "origin/develop"), "Base Commit = develop tip the cycle started from");
+  assert.notEqual(base, git(b, "log", "-1", "--format=%H", "--grep=^fix(task-002): fourth$"), "not the TASK's own commit");
+});

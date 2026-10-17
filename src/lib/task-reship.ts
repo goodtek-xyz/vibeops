@@ -7,7 +7,6 @@ import {
   gitCheckoutNewBranch,
   gitDeleteBranch,
   gitFetchRemote,
-  gitHeadCommit,
   gitMergeRemoteBranch,
   gitMergeInProgress,
   gitFetch,
@@ -17,6 +16,7 @@ import {
   gitSwitchToBranch,
   listUnmergedRelPaths,
   readGitInfo,
+  runGit,
 } from "./git.js";
 import {
   fastForwardLocalIntegration,
@@ -25,6 +25,7 @@ import {
   resolveIntegrationBaseRef,
 } from "./git-worktree.js";
 import { dim, log } from "./logger.js";
+import { fetchBaseBranch } from "./merge-base-freshness.js";
 import type { ProjectPaths } from "./paths.js";
 import { findMergeRequestByBranches } from "./pr-create.js";
 import { normalizeTaskRef } from "./resolve-task.js";
@@ -354,14 +355,31 @@ export async function assertMergeRequestNotOpen(
   return false;
 }
 
+/**
+ * Base Commit of a new PR cycle: where this cycle starts on the base branch — the merge base
+ * of the task branch and the freshly fetched `<remote>/<base>` (the base tip after the
+ * integration merge; the fork point with `--no-integrate`). Not the task branch HEAD, which
+ * after the follow-up commit is the TASK's own work. Fetch / read failure keeps the previous
+ * value (with a warning) rather than recording a wrong one.
+ */
 export async function refreshGitContextBaseCommit(
   taskFile: string,
   gitCtx: GitContext,
   cwd: string,
+  remote: string,
 ): Promise<GitContext> {
-  const head = await gitHeadCommit(cwd);
-  if (head === null || head.length === 0) return gitCtx;
-  return { ...gitCtx, baseCommit: head };
+  try {
+    const baseRef = await fetchBaseBranch(cwd, remote, gitCtx.baseBranch);
+    const { stdout } = await runGit(cwd, ["merge-base", "HEAD", baseRef]);
+    const base = stdout.trim();
+    if (base.length === 0) return gitCtx;
+    return { ...gitCtx, baseCommit: base };
+  } catch {
+    log.warn(
+      `Could not read ${remote}/${gitCtx.baseBranch} — Base Commit left at ${gitCtx.baseCommit.slice(0, 7)}.`,
+    );
+    return gitCtx;
+  }
 }
 
 export async function prepareGitContextForReship(

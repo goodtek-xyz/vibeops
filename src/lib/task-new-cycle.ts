@@ -270,7 +270,7 @@ export async function runPostMergeNewCycle(
   if (updateOpenMr) {
     log.info(dim("Updating open MR/PR (--allow-open-mr)."));
   } else {
-    gitCtx = await refreshGitContextBaseCommit(taskFile, gitCtx, cwd);
+    gitCtx = await refreshGitContextBaseCommit(taskFile, gitCtx, cwd, remote);
     gitCtx = await prepareGitContextForReship(cwd, taskFile, gitCtx);
 
     await commitReshipMetadata({
