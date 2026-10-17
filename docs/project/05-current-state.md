@@ -12,6 +12,7 @@
 - **3.0.0 (breaking):** merge gate — CheckRun/StatusContext classification fix, fail-closed (incl. no checks unless `merge.allowNoChecks`), strict `merge` config, SHA-pinned merges; requires gh ≥ 2.13.0 (TASK-020).
 - **3.1.1:** `task ship` commits staged / unstaged deletions and renames (`porcelain=v1 -z`, `git add -A` only for unstaged paths) (TASK-022).
 - **3.1.2:** merge gate waits for the PR's own GitHub Actions runs (expected `pull_request` workflows + all runs for the head SHA), head re-read before merge (TASK-024); CI on PRs + `main` (lint, typecheck, build, tests, smoke, gitleaks), npm Trusted Publishing workflow, OSS hygiene (TASK-023).
+- **Unreleased:** merge gate ignores dynamic workflow runs (Dependabot) (D-011, TASK-043).
 - **3.1.8:** time values from official docs (D-009): merge wait default 21600 s, no empty-rollup grace, no post-merge polling (TASK-033). Lock values (D-006) still open.
 - **3.1.8:** `init` sets the integration branch as the default branch of a repository it creates (TASK-035).
 - **3.1.8:** this repository uses `develop` (integration, default) + `main` (releases only) (TASK-034).
@@ -34,7 +35,7 @@
 | Init remote UX | `src/lib/git-remote.ts`, `src/lib/git-host-cli.ts` | Ask host → create/connect |
 | Status Now/Next | `src/commands/status.ts` | Human layout |
 | Worktrees / lock / TASK ids | `src/lib/git-worktree.ts`, `src/lib/task-lock.ts`, `src/lib/task-id-allocation.ts` | D-006 |
-| Merge gate | `src/lib/check-rollup.ts`, `src/lib/github-actions-gate.ts`, `src/lib/merge-base-freshness.ts`, `src/lib/merge-config.ts`, `src/lib/pr-create.ts` (`waitForMergeGate`) | Fail closed; rollup + GitHub Actions runs (D-007); head must contain base (D-008); `.vibeops.json` `merge` block |
+| Merge gate | `src/lib/check-rollup.ts`, `src/lib/github-actions-gate.ts`, `src/lib/merge-base-freshness.ts`, `src/lib/merge-config.ts`, `src/lib/pr-create.ts` (`waitForMergeGate`) | Fail closed; rollup + GitHub Actions runs (D-007), dynamic runs ignored (D-011); head must contain base (D-008); `.vibeops.json` `merge` block |
 
 ## Next
 
@@ -57,11 +58,10 @@ State at handoff — clean, ready to start the next feature from `develop`:
 Next feature candidates (each its own TASK, smallest first):
 
 1. `task sync --non-interactive`: accept the flag like `task add` / `task ship` (sync never prompts, but scripts that pass it fail with "unknown option").
-2. Merge gate ignores Dependabot's dynamic runs: the gate requires every Actions run for the head SHA to pass (D-007, `src/lib/github-actions-gate.ts`), which includes the runs that generate Dependabot PRs (`event: dynamic`, path `dynamic/dependabot/dependabot-updates`, check runs suffixed `(dynamic)`). A failing one (e.g. a Dependabot 403) refuses a PR whose CI is green (observed in a consumer repo). GitHub documents these as dynamic workflows "generated for a specific run and … not stored in your repository's `.github/workflows` directory" that run "the jobs that generate Dependabot pull requests" (docs.github.com/code-security/dependabot/working-with-dependabot/about-dependabot-on-github-actions-runners) — not CI of the commit. Exclude `event: dynamic` runs and `(dynamic)` check runs from the gate (required checks unaffected), with tests.
-3. `task ship -m` trailers on the metadata commit: the "mark shipped" commit (and the open-PR / new-cycle metadata commits) uses a fixed message (`docsCommitMessageFor`, `src/commands/task-ship.ts`), so the body and trailers of `-m` (e.g. `Co-Authored-By`) are missing there. Carry the trailers of `-m` over to the metadata commit (or accept trailers separately).
-4. `findMergeRequestByBranches` error contract: it returns the helper's promise without `await` inside its `try`, so lookup errors escape the intended `catch` (`task ship`, `task del`; `task release` already handles it). Decide per caller: swallow vs. surface.
-5. Repository lock without design-value timeouts (D-006 / D-009): event-based wait (file watch) instead of the 50 ms retry, process start time for pid reuse instead of `staleSeconds` age, explicit handling of other-host / unreadable locks.
-6. Normalise the status words of TASK-001…017 (`done` / `Review` → `Shipped`) after checking each was merged.
+2. `task ship -m` trailers on the metadata commit: the "mark shipped" commit (and the open-PR / new-cycle metadata commits) uses a fixed message (`docsCommitMessageFor`, `src/commands/task-ship.ts`), so the body and trailers of `-m` (e.g. `Co-Authored-By`) are missing there. Carry the trailers of `-m` over to the metadata commit (or accept trailers separately).
+3. `findMergeRequestByBranches` error contract: it returns the helper's promise without `await` inside its `try`, so lookup errors escape the intended `catch` (`task ship`, `task del`; `task release` already handles it). Decide per caller: swallow vs. surface.
+4. Repository lock without design-value timeouts (D-006 / D-009): event-based wait (file watch) instead of the 50 ms retry, process start time for pid reuse instead of `staleSeconds` age, explicit handling of other-host / unreadable locks.
+5. Normalise the status words of TASK-001…017 (`done` / `Review` → `Shipped`) after checking each was merged.
 
 Owner decisions pending:
 
