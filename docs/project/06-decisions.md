@@ -53,6 +53,10 @@ D-007 requires every Actions run for the head SHA to pass. That included GitHub'
 
 The maintainers' rule for their repositories: every change goes through the persona crew and the VibeOps TASK flow into `develop`, `main` only through `task release`. The tool checks what it can see locally before it creates or pushes anything: `branch-policy` (integration ≠ production), `default-branch` (remote default = integration, read with `git ls-remote --symref`), and — only when `.vibeops.json` names a crew — `personas` (`.personas/<crew>/SOURCE`) and `agents-contract` (`<!-- getpersona:<crew> -->` in AGENTS.md). Names follow the maintainers' repository baseline report. Default `warn` (a public tool must not impose one organization's crew on everyone, hence crew checks are opt-in); `enforce` stops the command. Host settings (branch protection, extra branches) stay with the host / the maintainers' platform checks.
 
+## D-013 · `task release --tag` makes "merge into main" the release (3.2.0+)
+
+Publishing starts from a `vX.Y.Z` tag on the release merge commit (`publish.yml`, D-010), which was a manual step after `task release`. `--tag` tags the host's merge commit with the `package.json` version found there and pushes the tag, after checking the commit is on the fetched production branch; an existing tag (local or remote) is refused, never moved. `publish.yml` keeps its own checks (tag = `package.json` version, commit on `main`).
+
 <!--
 Add subsequent decisions in the `D-NNN · one-line summary` form.
 Keep each entry short — one paragraph of "why" and "consequence" only.

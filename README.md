@@ -147,7 +147,7 @@ vibeops llm use auto   # auto | codex-oauth | cursor-agent | openai
 - **`task ship`**: `-m/--message`, `--new-cycle`, `--no-commit`, `--dry-run`, `--no-pr`, `--non-interactive`, `--allow-open-mr`, `--no-integrate`, `--recreate-branch`, `--skip-llm`
 - **`task merge`**: `--dry-run`, `--merge`, `--rebase`
 - **`task sync`**: `--dry-run`, `--no-remote-delete`, `--force`
-- **`task release`**: `--dry-run`, `--no-merge`, `--merge`, `--rebase`
+- **`task release`**: `--dry-run`, `--no-merge`, `--merge`, `--rebase`, `--tag` (after the merge, tag the release merge commit `v<package.json version>` and push it; never moves an existing tag)
 - **`pull`**: `--dry-run`
 - **`status`**: `--json`
 

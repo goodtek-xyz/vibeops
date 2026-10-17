@@ -9,12 +9,14 @@ import { bold, dim, log } from "../lib/logger.js";
 import {
   createMergeRequest,
   findMergeRequestByBranches,
+  getMergeRequestDetails,
   getMergeRequestState,
   MergeGateError,
   mergeMergeRequest,
   probeMergeRequestCli,
   type MergeRequestMergeMethod,
 } from "../lib/pr-create.js";
+import { tagReleaseCommit } from "../lib/release-tag.js";
 import { assertMergeRequestMerged } from "../lib/task-merge-verify.js";
 
 export interface TaskReleaseCommandOptions {
@@ -24,6 +26,8 @@ export interface TaskReleaseCommandOptions {
   merge?: boolean;
   squash?: boolean;
   rebase?: boolean;
+  /** After the merge, tag the release merge commit `v<package.json version>` and push it. */
+  tag?: boolean;
 }
 
 function resolveReleaseMergeMethod(opts: TaskReleaseCommandOptions): MergeRequestMergeMethod {
@@ -37,6 +41,11 @@ export async function taskReleaseCommand(
 ): Promise<void> {
   const cwd = resolve(options.cwd ?? process.cwd());
   const dryRun = options.dryRun === true;
+  if (options.tag === true && options.noMerge === true) {
+    log.error("--tag needs the merge: it tags the release merge commit (drop --no-merge).");
+    process.exitCode = 1;
+    return;
+  }
 
   let gitCfg;
   try {
@@ -103,6 +112,11 @@ export async function taskReleaseCommand(
       );
       if (mergeCfg.allowNoChecks) {
         log.info("  · allowNoChecks: true (a release PR with no checks would merge)");
+      }
+      if (options.tag === true) {
+        log.info(
+          `  · tag the release merge commit v<package.json version> and push the tag to ${remote}`,
+        );
       }
     }
     return;
@@ -191,6 +205,20 @@ export async function taskReleaseCommand(
       return;
     }
     log.ok(`Release ${label} merged into ${productionBranch}.`);
+    if (options.tag === true) {
+      const merged = await getMergeRequestDetails(cwd, host, releaseUrl);
+      const commit = merged?.mergeCommitSha ?? null;
+      const tagged =
+        commit === null
+          ? ({ ok: false, message: `the host did not report the merge commit of ${releaseUrl}` } as const)
+          : await tagReleaseCommit({ cwd, remote, productionBranch, commit });
+      if (!tagged.ok) {
+        log.error(`Release merged, but not tagged: ${tagged.message}.`);
+        process.exitCode = 1;
+        return;
+      }
+      log.ok(`Tagged ${tagged.tag} → ${tagged.commit.slice(0, 7)} and pushed to ${remote}.`);
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     log.error(`Release merge failed: ${msg}`);
