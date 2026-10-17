@@ -391,6 +391,12 @@ function insertSectionAfter(
   return [...before, ...newSection, ...after].join("\n");
 }
 
+/** Add (or replace) a `## <title>` section right after `## Status`. */
+export function withSectionAfterStatus(body: string, title: string, content: string): string {
+  if (locateSection(body, title) !== null) return replaceSectionContent(body, title, content);
+  return insertSectionAfter(body, "Status", title, content);
+}
+
 export async function updateInlineStatus(
   filePath: string,
   next: TaskStatus,

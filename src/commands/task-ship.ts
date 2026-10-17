@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 
 import { readText } from "../lib/filesystem.js";
 import { requireGitConfig } from "../lib/git-config.js";
-import { preflightBaseline } from "../lib/project-baseline.js";
+import { BASELINE_REPAIR_SECTION, preflightBaseline } from "../lib/project-baseline.js";
 import {
   gitCommitsAhead,
   gitHeadCommit,
@@ -40,6 +40,7 @@ import {
   parseTaskFilename,
   gitContextProblem,
   readGitContext,
+  readSection,
   readTaskFile,
   updateInlineStatus,
 } from "../lib/task.js";
@@ -452,7 +453,11 @@ export async function taskShipCommand(
   log.blank();
 
   const baselineGit = await requireGitConfig(cwd).catch(() => null);
-  if (baselineGit !== null && !(await preflightBaseline(cwd, baselineGit, "task ship"))) {
+  const repairTask = readSection(body, BASELINE_REPAIR_SECTION).startsWith("Repair");
+  if (
+    baselineGit !== null &&
+    !(await preflightBaseline(cwd, baselineGit, "task ship", { requireOk: repairTask }))
+  ) {
     process.exitCode = 1;
     return;
   }

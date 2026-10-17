@@ -4,6 +4,12 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 3.3.0 - 2026-10-18
+
+### Added
+
+- **`task add --repair-baseline`**: open the TASK that repairs a broken baseline even in `enforce` mode (failures shown as warnings for that command only); the TASK file records it (`## Baseline` → Repair) and its `task ship` requires every baseline check to pass, whatever the mode (D-015, TASK-052).
+
 ## 3.2.0 - 2026-10-18
 
 ### Fixed
