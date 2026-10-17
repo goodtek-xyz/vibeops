@@ -82,9 +82,14 @@ task
   .option("--dry-run", "Plan only")
   .option("--non-interactive", "CI: minimal scaffold (optional --idea)")
   .option("--idea <text>", "Short description (CI)")
+  .option(
+    "--repair-baseline",
+    "Open a TASK that repairs the baseline even in enforce mode (its ship requires every check to pass)",
+  )
   .option("--cwd <path>", "Target directory")
   .action(async (opts) => {
     await taskAddCommand({
+      repairBaseline: Boolean(opts.repairBaseline),
       dryRun: Boolean(opts.dryRun),
       nonInteractive: Boolean(opts.nonInteractive),
       idea: opts.idea as string | undefined,

@@ -144,36 +144,69 @@ export async function runBaselineChecks(
   return checks;
 }
 
+export interface PreflightOptions {
+  /**
+   * `task add --repair-baseline`: open a TASK that repairs the baseline even in `enforce` mode —
+   * failures are reported as warnings for this command only (an unreadable `baseline` block too,
+   * since the repair may be the config itself).
+   */
+  readonly repair?: boolean;
+  /** `task ship` of a baseline-repair TASK: every check must pass, whatever the mode. */
+  readonly requireOk?: boolean;
+}
+
+/** Section `task add --repair-baseline` writes into the TASK file (read back by `task ship`). */
+export const BASELINE_REPAIR_SECTION = "Baseline";
+export const BASELINE_REPAIR_TEXT =
+  "Repair — opened with `vibeops task add --repair-baseline`. `task ship` requires every baseline check to pass (whatever `baseline.mode` is).";
+
 /**
  * Run the configured checks and print failures. Returns false only in `enforce` mode with a
- * failing check (the caller stops); `warn` prints and continues; `off` skips.
+ * failing check (the caller stops); `warn` prints and continues; `off` skips. See
+ * {@link PreflightOptions} for the baseline-repair flow.
  */
 export async function preflightBaseline(
   cwd: string,
   git: VibeopsGitConfig,
   command: string,
+  opts: PreflightOptions = {},
 ): Promise<boolean> {
   let cfg: BaselineConfig;
   try {
     cfg = await readBaselineConfig(cwd);
   } catch (e) {
-    log.error(e instanceof Error ? e.message : String(e));
-    return false;
+    const msg = e instanceof Error ? e.message : String(e);
+    if (opts.repair !== true) {
+      log.error(msg);
+      return false;
+    }
+    log.warn(`${msg} — continuing with defaults (baseline repair).`);
+    cfg = BASELINE_DEFAULTS;
   }
-  if (cfg.mode === "off") return true;
+  if (cfg.mode === "off" && opts.repair !== true && opts.requireOk !== true) return true;
   const failed = (await runBaselineChecks(cwd, git, cfg)).filter((c) => !c.ok);
-  if (failed.length === 0) return true;
-  const enforce = cfg.mode === "enforce";
+  if (failed.length === 0) {
+    if (opts.repair === true) log.info(dim("baseline: every check passes already (--repair-baseline not needed)."));
+    return true;
+  }
+  const stop = opts.requireOk === true || (cfg.mode === "enforce" && opts.repair !== true);
   for (const c of failed) {
     const line = `baseline ${c.id}: ${c.detail}`;
-    if (enforce) log.error(line);
+    if (stop) log.error(line);
     else log.warn(line);
     if (c.fix) log.info(dim(`  fix: ${c.fix}`));
   }
-  if (enforce) {
-    log.info(dim(`${command} stopped (.vibeops.json baseline.mode: enforce).`));
+  if (opts.requireOk === true) {
+    log.info(dim(`${command} stopped: a baseline-repair TASK ships only when every check passes.`));
     return false;
   }
+  if (stop) {
+    log.info(
+      dim(`${command} stopped (.vibeops.json baseline.mode: enforce). To repair: vibeops task add --repair-baseline`),
+    );
+    return false;
+  }
+  if (opts.repair === true) log.info(dim("baseline repair: failures reported as warnings for this TASK."));
   return true;
 }
 
