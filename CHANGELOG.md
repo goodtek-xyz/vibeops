@@ -4,6 +4,8 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 3.1.8 - 2026-10-17
+
 ### Changed
 
 - **Time values follow official documentation** (D-009, TASK-033). `merge.waitTimeoutSeconds` default 900 → 21600 (GitHub-hosted job limit; max 432000, the self-hosted limit) — the wait still ends as soon as checks finish. `merge.emptyRollupGraceSeconds` default 30 → 0: name CI outside GitHub Actions in `requiredChecks`. `task merge` / `task release` confirm the merge with one read instead of polling (the merge APIs answer synchronously). `scripts/npm-publish.sh` waits for the registry with back-off and jitter within a few-minute budget.
