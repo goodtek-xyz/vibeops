@@ -61,6 +61,10 @@ Publishing starts from a `vX.Y.Z` tag on the release merge commit (`publish.yml`
 
 D-008 refuses a head that does not contain the current base. With bot PRs landing all the time, every TASK PR needed manual base merges, and an agent once rebased and force-pushed instead. Decision: on GitHub, `task merge` calls update-branch with `expected_head_sha` — the host merges the base into the PR branch (merge commit; no rebase, no force push; `202 Accepted`) — waits for the PR to report the new head, and runs the whole gate (CI wait, stale-base check) again with unchanged rules; repeated when the base moved meanwhile, bounded by `waitTimeoutSeconds`. A conflict stops (resolve locally). API errors back off exponentially with full jitter (cap 60 s, GitHub rate-limit guidance). `merge.updateBranch: false` keeps the plain refusal; GitLab is unchanged. The push-rejected hint of `task ship` now says merge, not rebase.
 
+## D-015 · Baseline repair TASKs (`task add --repair-baseline`, 3.3.0+)
+
+With `baseline.mode: enforce` a broken baseline (e.g. a changed crew pin) stopped `task add`, so the TASK that repairs it could not be opened; the working recovery was to edit `.vibeops.json` to `warn` locally (uncommitted) for the add. Decision: `task add --repair-baseline` reports failures as warnings for that command only (also an invalid `baseline` block, since the repair may be the config), and records the TASK as a repair (`## Baseline` section after Status); `task ship` of a repair TASK requires every baseline check to pass regardless of `baseline.mode`. No config edit, and the TASK file records why the gate was lowered.
+
 <!--
 Add subsequent decisions in the `D-NNN · one-line summary` form.
 Keep each entry short — one paragraph of "why" and "consequence" only.

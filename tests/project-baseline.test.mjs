@@ -161,3 +161,64 @@ test("summarizeBaseline: checks, crew commit from SOURCE, other remote branches"
   writeFileSync(join(dir, ".vibeops.json"), JSON.stringify({ name: "x", baseline: { mode: "loud" } }));
   assert.match((await summarizeBaseline(dir, GITFLOW)).configError, /`mode` must be one of/);
 });
+
+test("preflight repair / requireOk: repair downgrades enforce; requireOk stops whatever the mode", async () => {
+  const dir = repo("main"); // default-branch fails for integration develop
+  const write = (baseline) =>
+    writeFileSync(join(dir, ".vibeops.json"), JSON.stringify({ name: "x", baseline }));
+  write({ mode: "enforce" });
+  assert.equal(await preflightBaseline(dir, GITFLOW, "task add", { repair: true }), true);
+  write({ mode: "off" });
+  assert.equal(await preflightBaseline(dir, GITFLOW, "task ship", { requireOk: true }), false);
+  write({ mode: "loud" }); // the repair may be the config itself
+  assert.equal(await preflightBaseline(dir, GITFLOW, "task add", { repair: true }), true);
+  assert.equal(await preflightBaseline(dir, GITFLOW, "task ship", { requireOk: true }), false);
+});
+
+test("cli: task add --repair-baseline in enforce mode, ship only after the repair", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const { readdirSync, readFileSync } = await import("node:fs");
+  const { dirname } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const cli = join(dirname(fileURLToPath(import.meta.url)), "..", "dist", "cli.js");
+  const dir = repo("main");
+  const bare = join(dir, "..", "origin.git");
+  mkdirSync(join(dir, "docs", "tasks"), { recursive: true });
+  writeFileSync(join(dir, "docs", "tasks", ".keep"), "");
+  writeFileSync(
+    join(dir, ".vibeops.json"),
+    JSON.stringify({
+      name: "x",
+      vibeopsVersion: "3.2.0",
+      schemaVersion: 1,
+      createdAt: "2026-10-18T00:00:00Z",
+      clients: ["cursor"],
+      git: GITFLOW,
+      baseline: { mode: "enforce" },
+    }),
+  );
+  git(dir, "add", "-A");
+  git(dir, "commit", "-q", "-m", "config");
+  git(dir, "push", "-q", "origin", "main", "main:develop", "--force");
+  const run = (...a) =>
+    spawnSync(process.execPath, [cli, ...a, "--cwd", dir], { env: ENV, encoding: "utf8" });
+
+  const plain = run("task", "add", "--non-interactive", "--idea", "fix default branch");
+  assert.equal(plain.status, 1, plain.stdout + plain.stderr);
+  assert.match(plain.stdout + plain.stderr, /To repair: vibeops task add --repair-baseline/);
+
+  const add = run("task", "add", "--non-interactive", "--idea", "fix default branch", "--repair-baseline");
+  assert.equal(add.status, 0, add.stdout + add.stderr);
+  assert.match(add.stdout + add.stderr, /baseline repair: failures reported as warnings/);
+  const name = readdirSync(join(dir, "docs", "tasks")).find((n) => n.startsWith("TASK-"));
+  assert.match(readFileSync(join(dir, "docs", "tasks", name), "utf8"), /## Baseline\n\nRepair — opened with/);
+
+  const early = run("task", "ship", "--dry-run", "--non-interactive");
+  assert.equal(early.status, 1, early.stdout + early.stderr);
+  assert.match(early.stdout + early.stderr, /baseline-repair TASK ships only when every check passes/);
+
+  git(bare, "symbolic-ref", "HEAD", "refs/heads/develop"); // the repair (host default branch)
+  const ok = run("task", "ship", "--dry-run", "--non-interactive");
+  assert.equal(ok.status, 0, ok.stdout + ok.stderr);
+  assert.doesNotMatch(ok.stdout + ok.stderr, /baseline/);
+});

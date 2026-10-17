@@ -220,6 +220,7 @@ If a configured remote cannot be fetched, `task add` stops without creating a TA
 - `crew`: persona crew to require; omitted → the crew checks are skipped.
 - `vibeops status` shows the same checks (`Baseline …`), the crew's pinned catalog commit, and remote branches other than integration / production / `task/*` / `sync/*` (`status --json` → `baseline`).
 - The block is validated strictly (unknown keys / values are errors and stop the command).
+- **Repairing in `enforce` mode:** `vibeops task add --repair-baseline` opens the TASK anyway (failures shown as warnings for that command only) and writes a `## Baseline` section ("Repair …") into the TASK file; `task ship` of that TASK goes through only when every baseline check passes, whatever `baseline.mode` is.
 
 ## Merge gate
 

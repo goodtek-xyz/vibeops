@@ -12,6 +12,7 @@
 - **3.0.0 (breaking):** merge gate — CheckRun/StatusContext classification fix, fail-closed (incl. no checks unless `merge.allowNoChecks`), strict `merge` config, SHA-pinned merges; requires gh ≥ 2.13.0 (TASK-020).
 - **3.1.1:** `task ship` commits staged / unstaged deletions and renames (`porcelain=v1 -z`, `git add -A` only for unstaged paths) (TASK-022).
 - **3.1.2:** merge gate waits for the PR's own GitHub Actions runs (expected `pull_request` workflows + all runs for the head SHA), head re-read before merge (TASK-024); CI on PRs + `main` (lint, typecheck, build, tests, smoke, gitleaks), npm Trusted Publishing workflow, OSS hygiene (TASK-023).
+- **Unreleased:** `task add --repair-baseline` (D-015, TASK-052).
 - **3.2.0:** `ship --new-cycle` records the base it starts from as Base Commit (TASK-050).
 - **3.2.0:** `task merge` updates a stale PR branch on GitHub (update-branch, no force push) and re-checks (D-014, TASK-048).
 - **3.2.0:** `vibeops status` shows the baseline (checks, crew commit, other remote branches) (TASK-047).

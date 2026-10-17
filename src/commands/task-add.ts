@@ -7,7 +7,11 @@ import {
   printIntegrationSyncDiagnosis,
 } from "../lib/git-integration-sync.js";
 import { askInput } from "../lib/inquirer-helpers.js";
-import { preflightBaseline } from "../lib/project-baseline.js";
+import {
+  BASELINE_REPAIR_SECTION,
+  BASELINE_REPAIR_TEXT,
+  preflightBaseline,
+} from "../lib/project-baseline.js";
 import { bold, cyan, dim, log, yellow } from "../lib/logger.js";
 import { projectPaths } from "../lib/paths.js";
 import { slugify } from "../lib/slug.js";
@@ -30,6 +34,7 @@ import { isIncompleteTaskStart, startTaskBranch } from "../lib/task-start.js";
 import {
   branchNameForTaskFile,
   damagedGitContext,
+  withSectionAfterStatus,
   loadActionableTasks,
   readGitContext,
 } from "../lib/task.js";
@@ -40,6 +45,8 @@ export interface TaskAddCommandOptions {
   nonInteractive?: boolean;
   cwd?: string;
   idea?: string;
+  /** Open a baseline-repair TASK even when `baseline.mode` is `enforce` (see project-baseline.ts). */
+  repairBaseline?: boolean;
 }
 
 async function loadGitConfigOrNull(
@@ -127,7 +134,8 @@ export async function taskAddCommand(opts: TaskAddCommandOptions = {}): Promise<
 
   const gitCfg = await loadGitConfigOrNull(root, dryRun);
   if (!dryRun && gitCfg === null) return;
-  if (gitCfg !== null && !(await preflightBaseline(root, gitCfg, "task add"))) {
+  const repair = opts.repairBaseline === true;
+  if (gitCfg !== null && !(await preflightBaseline(root, gitCfg, "task add", { repair }))) {
     process.exitCode = 1;
     return;
   }
@@ -308,10 +316,13 @@ export async function taskAddCommand(opts: TaskAddCommandOptions = {}): Promise<
       }
     }
     const taskId = formatTaskId(taskNumber);
-    const markdown =
+    const drafted =
       taskId === provisionalId
         ? draftMarkdown
         : draftMarkdown.replace(new RegExp(`\\b${provisionalId}\\b`, "g"), taskId);
+    const markdown = repair
+      ? withSectionAfterStatus(drafted, BASELINE_REPAIR_SECTION, BASELINE_REPAIR_TEXT)
+      : drafted;
 
     const { filePath } = uniqueTaskPath(
       paths.docsTasks,
