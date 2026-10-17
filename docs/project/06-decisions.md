@@ -49,6 +49,10 @@ The maintainer organization standardised branches for all its repositories: only
 
 D-007 requires every Actions run for the head SHA to pass. That included GitHub's dynamic workflows — runs generated per job and not stored in the repository, such as the jobs that open Dependabot PRs (`event: dynamic`, `dynamic/dependabot/dependabot-updates`, check runs suffixed `(dynamic)`). A failed one (observed: Dependabot 403) refused a PR whose CI was green, and such a run cannot be re-run, so the PR stayed blocked. Decision: ignore `event: dynamic` runs (and `dynamic/…` paths) in the Actions part of the gate and `(dynamic)` check runs in the rollup, also when deriving the pipeline state; a `(dynamic)` check named in `requiredChecks` is still required. Basis: GitHub "Dependabot on GitHub Actions runners".
 
+## D-012 · `task add` / `task ship` check the repository baseline (3.2.0+)
+
+The maintainers' rule for their repositories: every change goes through the persona crew and the VibeOps TASK flow into `develop`, `main` only through `task release`. The tool checks what it can see locally before it creates or pushes anything: `branch-policy` (integration ≠ production), `default-branch` (remote default = integration, read with `git ls-remote --symref`), and — only when `.vibeops.json` names a crew — `personas` (`.personas/<crew>/SOURCE`) and `agents-contract` (`<!-- getpersona:<crew> -->` in AGENTS.md). Names follow the maintainers' repository baseline report. Default `warn` (a public tool must not impose one organization's crew on everyone, hence crew checks are opt-in); `enforce` stops the command. Host settings (branch protection, extra branches) stay with the host / the maintainers' platform checks.
+
 <!--
 Add subsequent decisions in the `D-NNN · one-line summary` form.
 Keep each entry short — one paragraph of "why" and "consequence" only.

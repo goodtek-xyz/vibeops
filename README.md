@@ -201,6 +201,25 @@ A branch counts only when its name has the **generated form** `task/<NNN>` or `t
 
 If a configured remote cannot be fetched, `task add` stops without creating a TASK file. Across machines, `task ship` re-checks the remote (`git ls-remote`) right before pushing and refuses if another task branch with the same number already exists there.
 
+## Baseline checks
+
+`task add` and `task ship` first check that the repository follows the VibeOps flow (`.vibeops.json` → `baseline`):
+
+| Check | OK when |
+|-------|---------|
+| `branch-policy` | `git.integrationBranch` ≠ `git.productionBranch` (e.g. `develop` → `main`) |
+| `default-branch` | the remote's default branch (`git ls-remote --symref <remote> HEAD`) is the integration branch |
+| `personas` | with `baseline.crew` set: `.personas/<crew>/SOURCE` exists |
+| `agents-contract` | with `baseline.crew` set: AGENTS.md has the `<!-- getpersona:<crew> -->` section |
+
+```json
+{ "baseline": { "mode": "warn", "crew": "vibe-crew" } }
+```
+
+- `mode`: `warn` (default — print each failing check with a fix and continue), `enforce` (stop with exit code 1, nothing created or pushed), `off`.
+- `crew`: persona crew to require; omitted → the crew checks are skipped.
+- The block is validated strictly (unknown keys / values are errors and stop the command).
+
 ## Merge gate
 
 > **3.0.0 breaking:** a PR/MR with **no checks at all** is refused by default. Repos without CI: set `"merge": {"allowNoChecks": true}` in `.vibeops.json`. Requires **gh ≥ 2.13.0**.

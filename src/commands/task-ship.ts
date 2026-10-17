@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 
 import { readText } from "../lib/filesystem.js";
 import { requireGitConfig } from "../lib/git-config.js";
+import { preflightBaseline } from "../lib/project-baseline.js";
 import {
   gitCommitsAhead,
   gitHeadCommit,
@@ -449,6 +450,12 @@ export async function taskShipCommand(
     log.info(`  ${dim("PR")}    ${prRefLabel(prCtx.number)} (${prCtx.state})`);
   }
   log.blank();
+
+  const baselineGit = await requireGitConfig(cwd).catch(() => null);
+  if (baselineGit !== null && !(await preflightBaseline(cwd, baselineGit, "task ship"))) {
+    process.exitCode = 1;
+    return;
+  }
 
   const ctx: ShipContext = {
     cwd,

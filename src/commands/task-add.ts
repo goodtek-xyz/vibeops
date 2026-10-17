@@ -7,6 +7,7 @@ import {
   printIntegrationSyncDiagnosis,
 } from "../lib/git-integration-sync.js";
 import { askInput } from "../lib/inquirer-helpers.js";
+import { preflightBaseline } from "../lib/project-baseline.js";
 import { bold, cyan, dim, log, yellow } from "../lib/logger.js";
 import { projectPaths } from "../lib/paths.js";
 import { slugify } from "../lib/slug.js";
@@ -126,6 +127,10 @@ export async function taskAddCommand(opts: TaskAddCommandOptions = {}): Promise<
 
   const gitCfg = await loadGitConfigOrNull(root, dryRun);
   if (!dryRun && gitCfg === null) return;
+  if (gitCfg !== null && !(await preflightBaseline(root, gitCfg, "task add"))) {
+    process.exitCode = 1;
+    return;
+  }
 
   let lockCfg: TaskLockConfig;
   try {
