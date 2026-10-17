@@ -1,6 +1,6 @@
 # VibeOps
 
-> Minimal CLI rails for TASK-driven vibe coding (Cursor, Claude Code, Codex).
+> Minimal CLI rails for TASK-driven vibe coding (Claude Code, Codex, Cursor).
 
 [![npm version](https://img.shields.io/npm/v/@goodtek/vibeops.svg)](https://www.npmjs.com/package/@goodtek/vibeops)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -59,7 +59,7 @@ Interactive init asks which agents to install, Git branch policy, then **where t
 vibeops init
 
 # Non-interactive (GitFlow: develop + main, origin required unless CI)
-vibeops init --clients cursor,claude,codex --git --initial-commit --git-policy gitflow --allow-no-remote
+vibeops init --clients claude,codex,cursor --git --initial-commit --git-policy gitflow --allow-no-remote
 
 # Re-init templates on an existing project
 vibeops init --clients cursor --yes
@@ -68,9 +68,9 @@ vibeops init --clients cursor --yes
 | Pack | Installed |
 |------|-----------|
 | **core** (always) | `AGENTS.md`, `docs/tasks`, `docs/project`, `docs/logs` |
-| **cursor** | `.cursor/rules/`, `.cursor/skills/` |
 | **claude** | `CLAUDE.md`, `.claude/skills/` |
 | **codex** | `.agents/skills/` |
+| **cursor** | `.cursor/rules/`, `.cursor/skills/` |
 
 Re-init **overwrites** templates (rules, skills, doc stubs). **`docs/tasks/TASK-*.md` are kept.**
 
