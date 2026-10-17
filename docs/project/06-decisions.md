@@ -57,6 +57,10 @@ The maintainers' rule for their repositories: every change goes through the pers
 
 Publishing starts from a `vX.Y.Z` tag on the release merge commit (`publish.yml`, D-010), which was a manual step after `task release`. `--tag` tags the host's merge commit with the `package.json` version found there and pushes the tag, after checking the commit is on the fetched production branch; an existing tag (local or remote) is refused, never moved. `publish.yml` keeps its own checks (tag = `package.json` version, commit on `main`).
 
+## D-014 · `task merge` updates a stale branch on the host (3.2.0+)
+
+D-008 refuses a head that does not contain the current base. With bot PRs landing all the time, every TASK PR needed manual base merges, and an agent once rebased and force-pushed instead. Decision: on GitHub, `task merge` calls update-branch with `expected_head_sha` — the host merges the base into the PR branch (merge commit; no rebase, no force push; `202 Accepted`) — waits for the PR to report the new head, and runs the whole gate (CI wait, stale-base check) again with unchanged rules; repeated when the base moved meanwhile, bounded by `waitTimeoutSeconds`. A conflict stops (resolve locally). API errors back off exponentially with full jitter (cap 60 s, GitHub rate-limit guidance). `merge.updateBranch: false` keeps the plain refusal; GitLab is unchanged. The push-rejected hint of `task ship` now says merge, not rebase.
+
 <!--
 Add subsequent decisions in the `D-NNN · one-line summary` form.
 Keep each entry short — one paragraph of "why" and "consequence" only.

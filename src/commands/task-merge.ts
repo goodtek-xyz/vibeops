@@ -144,7 +144,11 @@ export async function taskMergeCommand(
       method,
       requiredChecks,
       gate,
-      requireBaseInHead: { remote: gitCfg.remote, baseBranch: ctx.baseBranch },
+      requireBaseInHead: {
+          remote: gitCfg.remote,
+          baseBranch: ctx.baseBranch,
+          updateBranch: mergeCfg.updateBranch,
+        },
       dryRun: true,
     });
     log.blank();
@@ -179,7 +183,11 @@ export async function taskMergeCommand(
         waitForCi: true,
         requiredChecks,
         gate,
-        requireBaseInHead: { remote: gitCfg.remote, baseBranch: ctx.baseBranch },
+        requireBaseInHead: {
+          remote: gitCfg.remote,
+          baseBranch: ctx.baseBranch,
+          updateBranch: mergeCfg.updateBranch,
+        },
       });
       const verified = await assertMergeRequestMerged({
         cwd,
@@ -215,7 +223,11 @@ export async function taskMergeCommand(
         waitForCi: true,
         requiredChecks,
         gate,
-        requireBaseInHead: { remote: gitCfg.remote, baseBranch: ctx.baseBranch },
+        requireBaseInHead: {
+          remote: gitCfg.remote,
+          baseBranch: ctx.baseBranch,
+          updateBranch: mergeCfg.updateBranch,
+        },
       });
       const verified = await assertMergeRequestMerged({
         cwd,

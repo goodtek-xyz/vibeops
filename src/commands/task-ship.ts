@@ -94,7 +94,7 @@ function describePushFailure(message: string): string {
     lower.includes("rejected") ||
     lower.includes("behind")
   ) {
-    return "Push rejected — the remote branch has commits you don't. Pull/rebase the task branch, then rerun.";
+    return "Push rejected — the remote branch has commits you don't. Merge them in (git pull --no-rebase), then rerun; never rebase + force-push a shared task branch.";
   }
   return `git push failed: ${message}`;
 }
