@@ -64,8 +64,7 @@ Next feature candidates (each its own TASK, smallest first):
 
 Owner decisions pending:
 
-- Persona crew for this public repository: the organization's installer adds files that name a private repository and its decision numbers, which this repository's public-OSS rule forbids. Needs a public variant of the installer / section (or an exemption) before installing.
-- Organization baseline check: Dependabot configuration added (TASK-038); "Update branch" on PRs (`allow_update_branch`) is applied by the maintainers' platform tooling; the persona crew and agent-contract section wait for a public-repository variant of the installer (see above).
+- Organization baseline check: Dependabot configuration (TASK-038) and the persona crew + agent-contract section (TASK-041, public variant) are in; "Update branch" on PRs (`allow_update_branch`) is applied by the maintainers' platform tooling.
 - npm package setting: *Require two-factor authentication and disallow tokens* (recommended by npm now that OIDC publishing works; disables the manual `pnpm publish:npm` fallback).
 - Dependabot `sprintf-js` alert: handled through Dependabot (TASK-038) — no fixed release exists yet; replacing `gray-matter` would remove it (TASK, if wanted).
 
