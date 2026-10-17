@@ -46,7 +46,11 @@
 State at handoff — clean, ready to start the next feature from `develop`:
 
 - Released: `@goodtek/vibeops` **3.1.8** on npm (`latest`, SLSA provenance), tag `v3.1.8` on `main` (`cb59407`), published by `publish.yml` (Trusted Publishing, connection *Valid*). First release through `develop → main` (D-010).
-- Branches: `develop` (default, integration) and `main` (releases only). No other branches, no open PRs, no worktrees.
+- Branches: `develop` (default, integration) and `main` (releases only). No other branches and no worktrees.
+- Open PRs: only Dependabot major-version PRs, left open on purpose (each needs its own TASK). Dependabot minor / patch groups are merged after CI (#34 eslint, #35 @inquirer/prompts).
+  - #36 `@types/node` 20 → 26: CI green, but the types must follow the lowest supported Node (`engines.node` `>=20`); keep 20.x (ignore majors) unless the Node floor moves.
+  - #37 `typescript` 5.9 → 6.0: CI fails on all Node versions; needs a migration TASK.
+  - #38 `commander` 12 → 15: CI green, but commander 15 requires Node `>=22.12.0`, above this package's `>=20`; adopt only with a decision to raise the Node floor (also re-check negated-flag parsing, TASK-025).
 - TASKs: none In Progress (TASK-000 is the template). TASK-001…017 still carry the old status words `done` / `Review` from before the Shipped vocabulary.
 - CI green on `develop` and `main`. One open Dependabot alert: `sprintf-js` (no fixed release; reached only through `js-yaml`'s CLI, not used — see TASK-027).
 
