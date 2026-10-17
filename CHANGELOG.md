@@ -4,6 +4,10 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+### Added
+
+- **Baseline checks before `task add` / `task ship`** (`.vibeops.json` → `baseline`): `branch-policy` (integration ≠ production), `default-branch` (remote default = integration), and with `baseline.crew` set `personas` / `agents-contract`. `mode`: `warn` (default), `enforce` (stop, exit 1), `off` (D-012, TASK-045).
+
 ## 3.1.9 - 2026-10-17
 
 ### Fixed

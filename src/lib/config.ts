@@ -79,6 +79,7 @@ export async function readConfig(root: string): Promise<VibeopsConfig | null> {
       const llm = parseLlmBlock(parsed.llm);
       const git = parseGitBlock(parsed.git);
       const merge = (parsed as { merge?: unknown }).merge;
+      const baseline = (parsed as { baseline?: unknown }).baseline;
       const clients = parseClientsBlock(parsed.clients) ?? ["cursor"];
       return {
         name: parsed.name,
@@ -89,6 +90,7 @@ export async function readConfig(root: string): Promise<VibeopsConfig | null> {
         ...(git ? { git } : {}),
         ...(llm ? { llm } : {}),
         ...(merge !== undefined ? { merge } : {}),
+        ...(baseline !== undefined ? { baseline } : {}),
       };
     }
     return null;
@@ -113,6 +115,7 @@ export function buildConfig(
     git,
     llm: existing?.llm ?? { provider: "auto" },
     ...(existing?.merge !== undefined ? { merge: existing.merge } : {}),
+    ...(existing?.baseline !== undefined ? { baseline: existing.baseline } : {}),
   };
 }
 

@@ -38,5 +38,8 @@
       "Verify · node 24",
       "Secret scan · gitleaks"
     ]
+  },
+  "baseline": {
+    "crew": "vibe-crew"
   }
 }
