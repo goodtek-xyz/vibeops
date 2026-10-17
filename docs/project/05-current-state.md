@@ -41,6 +41,29 @@
 - Consumers: `npm i -g @goodtek/vibeops@3.1.8` (or `volta install @goodtek/vibeops@3.1.8`). Repos without CI: `"merge": {"allowNoChecks": true}`.
 - Maintainers: TASK PRs → `develop`; release = release-prep TASK on `develop` → `vibeops task release` (develop → main, after its CI) → tag `vX.Y.Z` on `main` → `publish.yml` publishes via npm Trusted Publishing (no token; 09-deployment.md). Manual `pnpm publish:npm` is a fallback only.
 
+## Handoff (2026-10-17)
+
+State at handoff — clean, ready to start the next feature from `develop`:
+
+- Released: `@goodtek/vibeops` **3.1.8** on npm (`latest`, SLSA provenance), tag `v3.1.8` on `main` (`cb59407`), published by `publish.yml` (Trusted Publishing, connection *Valid*). First release through `develop → main` (D-010).
+- Branches: `develop` (default, integration) and `main` (releases only). No other branches, no open PRs, no worktrees.
+- TASKs: none In Progress (TASK-000 is the template). TASK-001…017 still carry the old status words `done` / `Review` from before the Shipped vocabulary.
+- CI green on `develop` and `main`. One open Dependabot alert: `sprintf-js` (no fixed release; reached only through `js-yaml`'s CLI, not used — see TASK-027).
+
+Next feature candidates (each its own TASK, smallest first):
+
+1. `task sync --non-interactive`: accept the flag like `task add` / `task ship` (sync never prompts, but scripts that pass it fail with "unknown option").
+2. `findMergeRequestByBranches` error contract: it returns the helper's promise without `await` inside its `try`, so lookup errors escape the intended `catch` (`task ship`, `task del`; `task release` already handles it). Decide per caller: swallow vs. surface.
+3. Repository lock without design-value timeouts (D-006 / D-009): event-based wait (file watch) instead of the 50 ms retry, process start time for pid reuse instead of `staleSeconds` age, explicit handling of other-host / unreadable locks.
+4. Normalise the status words of TASK-001…017 (`done` / `Review` → `Shipped`) after checking each was merged.
+
+Owner decisions pending:
+
+- Persona crew for this public repository: the organization's installer adds files that name a private repository and its decision numbers, which this repository's public-OSS rule forbids. Needs a public variant of the installer / section (or an exemption) before installing.
+- Repository settings reported missing by the organization's baseline check: "Update branch" on PRs (`allow_update_branch`), Dependabot configuration, agent-contract section. Applying them changes repository settings / files — owner's call.
+- npm package setting: *Require two-factor authentication and disallow tokens* (recommended by npm now that OIDC publishing works; disables the manual `pnpm publish:npm` fallback).
+- Dependabot `sprintf-js` alert: dismiss as "vulnerable code not used", or replace `gray-matter` (TASK).
+
 ## Progress rules
 
 - One TASK at a time in consumer repos.
