@@ -8,7 +8,7 @@ This project keeps **Cursor-based vibe coding** on a structured workflow. The wo
 
 ## Public open source
 
-This repository is **public** (MIT) and published to npm. It follows the maintainer organization's open-source rules (app contract §8): code, comments, docs, tests, commit messages and PR text contain **no internal details** — no internal host or machine names, private IPs, internal registry / secret-manager URLs, secret-manager project ids, personal paths, private repository names or other repositories' TASK numbers. Use generic placeholders (`<your-infisical-host>`, `example.invalid`, `TASK-NNN`). Never commit secrets; CI runs gitleaks on every PR and on `main`.
+This repository is **public** (MIT) and published to npm. It follows the maintainer organization's open-source rules (app contract §8): code, comments, docs, tests, commit messages and PR text contain **no internal details** — no internal host or machine names, private IPs, internal registry / secret-manager URLs, secret-manager project ids, personal paths, private repository names or other repositories' TASK numbers. Use generic placeholders (`<your-infisical-host>`, `example.invalid`, `TASK-NNN`). Never commit secrets; CI runs gitleaks on every PR and on `develop` / `main`.
 
 ## Documents to read before coding
 
