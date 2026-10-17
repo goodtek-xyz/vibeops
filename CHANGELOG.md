@@ -6,6 +6,7 @@ All notable changes to VibeOps are documented here.
 
 ### Added
 
+- **`vibeops status` shows the repository baseline**: the baseline checks, mode, the persona crew and its pinned catalog commit, and other remote branches (`--json` → `baseline`) (TASK-047).
 - **`task release --tag`**: after the release merge, tag the merge commit `v<package.json version>` and push the tag (refuses when the commit is not on the production branch, the version is not semver, or the tag already exists) — merge into production and tagging for publish become one step (D-013, TASK-046).
 - **Baseline checks before `task add` / `task ship`** (`.vibeops.json` → `baseline`): `branch-policy` (integration ≠ production), `default-branch` (remote default = integration), and with `baseline.crew` set `personas` / `agents-contract`. `mode`: `warn` (default), `enforce` (stop, exit 1), `off` (D-012, TASK-045).
 

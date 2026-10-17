@@ -218,6 +218,7 @@ If a configured remote cannot be fetched, `task add` stops without creating a TA
 
 - `mode`: `warn` (default — print each failing check with a fix and continue), `enforce` (stop with exit code 1, nothing created or pushed), `off`.
 - `crew`: persona crew to require; omitted → the crew checks are skipped.
+- `vibeops status` shows the same checks (`Baseline …`), the crew's pinned catalog commit, and remote branches other than integration / production / `task/*` / `sync/*` (`status --json` → `baseline`).
 - The block is validated strictly (unknown keys / values are errors and stop the command).
 
 ## Merge gate
