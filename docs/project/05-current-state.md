@@ -57,10 +57,11 @@ State at handoff — clean, ready to start the next feature from `develop`:
 Next feature candidates (each its own TASK, smallest first):
 
 1. `task sync --non-interactive`: accept the flag like `task add` / `task ship` (sync never prompts, but scripts that pass it fail with "unknown option").
-2. `task ship -m` trailers on the metadata commit: the "mark shipped" commit (and the open-PR / new-cycle metadata commits) uses a fixed message (`docsCommitMessageFor`, `src/commands/task-ship.ts`), so the body and trailers of `-m` (e.g. `Co-Authored-By`) are missing there. Carry the trailers of `-m` over to the metadata commit (or accept trailers separately).
-3. `findMergeRequestByBranches` error contract: it returns the helper's promise without `await` inside its `try`, so lookup errors escape the intended `catch` (`task ship`, `task del`; `task release` already handles it). Decide per caller: swallow vs. surface.
-4. Repository lock without design-value timeouts (D-006 / D-009): event-based wait (file watch) instead of the 50 ms retry, process start time for pid reuse instead of `staleSeconds` age, explicit handling of other-host / unreadable locks.
-5. Normalise the status words of TASK-001…017 (`done` / `Review` → `Shipped`) after checking each was merged.
+2. Merge gate ignores Dependabot's dynamic runs: the gate requires every Actions run for the head SHA to pass (D-007, `src/lib/github-actions-gate.ts`), which includes the runs that generate Dependabot PRs (`event: dynamic`, path `dynamic/dependabot/dependabot-updates`, check runs suffixed `(dynamic)`). A failing one (e.g. a Dependabot 403) refuses a PR whose CI is green (observed in a consumer repo). GitHub documents these as dynamic workflows "generated for a specific run and … not stored in your repository's `.github/workflows` directory" that run "the jobs that generate Dependabot pull requests" (docs.github.com/code-security/dependabot/working-with-dependabot/about-dependabot-on-github-actions-runners) — not CI of the commit. Exclude `event: dynamic` runs and `(dynamic)` check runs from the gate (required checks unaffected), with tests.
+3. `task ship -m` trailers on the metadata commit: the "mark shipped" commit (and the open-PR / new-cycle metadata commits) uses a fixed message (`docsCommitMessageFor`, `src/commands/task-ship.ts`), so the body and trailers of `-m` (e.g. `Co-Authored-By`) are missing there. Carry the trailers of `-m` over to the metadata commit (or accept trailers separately).
+4. `findMergeRequestByBranches` error contract: it returns the helper's promise without `await` inside its `try`, so lookup errors escape the intended `catch` (`task ship`, `task del`; `task release` already handles it). Decide per caller: swallow vs. surface.
+5. Repository lock without design-value timeouts (D-006 / D-009): event-based wait (file watch) instead of the 50 ms retry, process start time for pid reuse instead of `staleSeconds` age, explicit handling of other-host / unreadable locks.
+6. Normalise the status words of TASK-001…017 (`done` / `Review` → `Shipped`) after checking each was merged.
 
 Owner decisions pending:
 
