@@ -65,7 +65,8 @@ Next feature candidates (each its own TASK, smallest first):
 2. `task ship -m` trailers on the metadata commit (also requested as a config option, e.g. a `Co-Authored-By` trailer for every generated commit): the "mark shipped" commit (and the open-PR / new-cycle metadata commits) uses a fixed message (`docsCommitMessageFor`, `src/commands/task-ship.ts`), so the body and trailers of `-m` (e.g. `Co-Authored-By`) are missing there. Carry the trailers of `-m` over to the metadata commit (or accept trailers separately).
 3. `findMergeRequestByBranches` error contract: it returns the helper's promise without `await` inside its `try`, so lookup errors escape the intended `catch` (`task ship`, `task del`; `task release` already handles it). Decide per caller: swallow vs. surface.
 4. Repository lock without design-value timeouts (D-006 / D-009): event-based wait (file watch) instead of the 50 ms retry, process start time for pid reuse instead of `staleSeconds` age, explicit handling of other-host / unreadable locks.
-5. Normalise the status words of TASK-001…017 (`done` / `Review` → `Shipped`) after checking each was merged.
+5. `task ship --new-cycle` records the wrong Base Commit: `refreshGitContextBaseCommit` (`src/lib/task-reship.ts`) writes the task branch `HEAD` after the follow-up commit — the TASK's own feature commit — instead of the base it starts from (`<remote>/<base>` after the integration merge, or their merge base). Check: after a new cycle, compare the TASK file's Base Commit with `git rev-parse <remote>/<base>`.
+6. Normalise the status words of TASK-001…017 (`done` / `Review` → `Shipped`) after checking each was merged.
 
 Owner decisions pending:
 
