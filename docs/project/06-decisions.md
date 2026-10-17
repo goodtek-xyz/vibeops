@@ -45,6 +45,10 @@ Waits, timeouts and intervals are taken from the documentation of the system the
 
 The maintainer organization standardised branches for all its repositories: only `develop` (integration, default branch) and `main` (production) are long-lived, and `main` only receives releases through `vibeops task release`. This repository followed a trunk policy (`main` only, `release/X.Y.Z` PRs). Decision (owner): adopt the standard here too — `.vibeops.json` `integrationBranch: develop`, `productionBranch: main`; CI runs on pushes to both; releases are a release-prep TASK on `develop`, then `task release`, then the `vX.Y.Z` tag on the `main` merge commit (`publish.yml` unchanged: the tag must be on `main`). This also exercises VibeOps' own GitFlow path on every release.
 
+## D-011 · The merge gate ignores dynamic workflow runs (3.1.9+)
+
+D-007 requires every Actions run for the head SHA to pass. That included GitHub's dynamic workflows — runs generated per job and not stored in the repository, such as the jobs that open Dependabot PRs (`event: dynamic`, `dynamic/dependabot/dependabot-updates`, check runs suffixed `(dynamic)`). A failed one (observed: Dependabot 403) refused a PR whose CI was green, and such a run cannot be re-run, so the PR stayed blocked. Decision: ignore `event: dynamic` runs (and `dynamic/…` paths) in the Actions part of the gate and `(dynamic)` check runs in the rollup, also when deriving the pipeline state; a `(dynamic)` check named in `requiredChecks` is still required. Basis: GitHub "Dependabot on GitHub Actions runners".
+
 <!--
 Add subsequent decisions in the `D-NNN · one-line summary` form.
 Keep each entry short — one paragraph of "why" and "consequence" only.

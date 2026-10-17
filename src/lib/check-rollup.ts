@@ -133,6 +133,22 @@ export interface CheckGateResult {
  * - any pending, or a required check not (yet) present → pending
  * - otherwise green (including "no checks at all" when nothing is required)
  */
+/**
+ * Check runs GitHub suffixes with " (dynamic)" belong to dynamic workflows (see
+ * `isDynamicRun` in github-actions-gate.ts), not to the commit's CI: dropped unless a required
+ * check pattern names them.
+ */
+export function withoutDynamicChecks(
+  checks: readonly ClassifiedCheck[],
+  requiredChecks: readonly string[] = [],
+): ClassifiedCheck[] {
+  return checks.filter(
+    (c) =>
+      !(c.kind === "CheckRun" && c.name.endsWith(" (dynamic)")) ||
+      requiredChecks.some((p) => checkNameMatches(c.name, p)),
+  );
+}
+
 export function evaluateCheckGate(
   checks: readonly ClassifiedCheck[],
   requiredChecks: readonly string[] = [],

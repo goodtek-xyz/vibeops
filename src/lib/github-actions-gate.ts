@@ -211,6 +211,18 @@ export interface ActionsGateResult {
 
 const RUN_PASS = new Set(["success", "neutral", "skipped"]);
 
+/**
+ * GitHub-generated runs that are not the commit's CI: "dynamic workflows are generated for a
+ * specific run and are not stored in your repository's `.github/workflows` directory" — e.g.
+ * the jobs that generate Dependabot pull requests, `dynamic/dependabot/dependabot-updates`
+ * (docs.github.com/code-security/dependabot/working-with-dependabot/about-dependabot-on-github-actions-runners).
+ * Their result says nothing about the head commit, and a failed one cannot be re-run, so the
+ * gate ignores them (required checks named in `.vibeops.json` are still judged by name).
+ */
+export function isDynamicRun(run: Pick<WorkflowRunInfo, "event" | "path">): boolean {
+  return run.event === "dynamic" || run.path.startsWith("dynamic/");
+}
+
 function runPath(run: WorkflowRunInfo): string {
   return run.path.split("@")[0]!;
 }
@@ -222,7 +234,7 @@ function describeRun(run: WorkflowRunInfo, detail: string): string {
 /**
  * Latest run per (workflow, event) must be completed and passing; every
  * expected workflow must have a `pull_request` run. Unknown statuses /
- * conclusions fail closed.
+ * conclusions fail closed. Dynamic runs ({@link isDynamicRun}) are ignored.
  */
 export function evaluateActionsRuns(
   runs: readonly WorkflowRunInfo[],
@@ -230,6 +242,7 @@ export function evaluateActionsRuns(
 ): ActionsGateResult {
   const latest = new Map<string, WorkflowRunInfo>();
   for (const run of runs) {
+    if (isDynamicRun(run)) continue;
     const key = `${runPath(run)}\u0000${run.event}`;
     const prev = latest.get(key);
     if (prev === undefined || run.id > prev.id) latest.set(key, run);

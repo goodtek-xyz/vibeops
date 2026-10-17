@@ -1066,3 +1066,61 @@ test("merge verify: one read — merged PR passes, open PR is reported without p
   assert.equal(viewCount(), 1, "read once");
   assert.ok(Date.now() - started < 5_000, "no waiting");
 });
+
+// ---------------------------------------------------------------------------
+// Dependabot dynamic runs are not the commit's CI (observed: a PR with green CI refused
+// because `dynamic/dependabot/dependabot-updates` on the same head failed; such a run
+// cannot be re-run). GitHub: dynamic workflows are generated per run and not stored in
+// `.github/workflows` (about-dependabot-on-github-actions-runners).
+// ---------------------------------------------------------------------------
+
+const DEPENDABOT_DYNAMIC = (id, status, conclusion) => ({
+  id,
+  name: "Dependabot Updates",
+  path: "dynamic/dependabot/dependabot-updates",
+  event: "dynamic",
+  status,
+  conclusion,
+});
+
+test("actions: a failed Dependabot dynamic run on the head does not block a green PR", async () => {
+  routeApi([
+    workflowsDir(["ci.yml"]),
+    workflowFile("ci.yml", CI_YML),
+    runs([
+      run(1, "pull_request", "completed", "success"),
+      DEPENDABOT_DYNAMIC(2, "completed", "failure"),
+      DEPENDABOT_DYNAMIC(3, "in_progress", null),
+    ]),
+  ]);
+  queueViews([ghPr([checkRun("build", "COMPLETED", "SUCCESS")])]);
+  await merge();
+  assert.deepEqual(mergeCalls(), [["pr", "merge", "7", "--squash", "--match-head-commit", "abc123"]]);
+});
+
+test("actions: dynamic runs alone do not count as CI (no checks → refused without allowNoChecks)", async () => {
+  routeApi([runs([DEPENDABOT_DYNAMIC(2, "completed", "success")])]);
+  queueViews([ghPr([])]);
+  await assert.rejects(merge(), /no checks/i);
+  assert.deepEqual(mergeCalls(), []);
+});
+
+test("checks: a failed '(dynamic)' check run is ignored unless required by name", async () => {
+  const rollup = [
+    checkRun("build", "COMPLETED", "SUCCESS"),
+    checkRun("Dependabot (dynamic)", "COMPLETED", "FAILURE"),
+  ];
+  queueViews([ghPr(rollup)]);
+  await merge();
+  assert.equal(mergeCalls().length, 1);
+
+  writeFileSync(join(stateDir, "counter"), "0");
+  queueViews([ghPr(rollup)]);
+  await assert.rejects(merge({ requiredChecks: ["Dependabot (dynamic)"] }), /failed checks: "Dependabot \(dynamic\)"/);
+  assert.equal(mergeCalls().length, 1, "no second merge");
+});
+
+test("evaluateActionsRuns / isDynamicRun skip dynamic runs", () => {
+  const r = evaluateActionsRuns([DEPENDABOT_DYNAMIC(2, "completed", "failure")], []);
+  assert.deepEqual(r, { failed: [], pending: [], missing: [] });
+});
