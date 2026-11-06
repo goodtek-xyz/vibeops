@@ -163,6 +163,26 @@ vibeops llm use auto   # auto | codex-oauth | cursor-agent | openai
 - **`status`**: Now / Next card — focus stage, checklist, PR, and the next command to run.
 - No force-push to shared branches.
 
+### Commit trailers (`.vibeops.json` → `git.commitTrailers`)
+
+Commits VibeOps makes itself (`task ship` implementation and `mark shipped` commits, `--new-cycle` metadata) can carry git trailers. git's `trailer.*` config only applies with `--trailer` / `interpret-trailers`, and `commit.template` is ignored for `-m`, so set them here:
+
+```json
+{
+  "git": {
+    "remote": "origin",
+    "host": "github",
+    "integrationBranch": "develop",
+    "productionBranch": "main",
+    "commitTrailers": ["Co-Authored-By: Name <name@example.com>"]
+  }
+}
+```
+
+- Each entry is passed as `git commit --trailer <entry>`; `--dry-run` lists them.
+- Validated strictly: an array of one-line `Token: value` strings (token: letters, digits, `-`). Anything else (not an array, newline, missing `: `, empty value) makes the command exit 1 naming the entry.
+- Unset → no trailers. Re-running `init` keeps the list. The initial `init` commit does not use it.
+
 ## Worktrees
 
 VibeOps supports several `git worktree` checkouts of one repo working in parallel. It never needs to check out the integration branch:

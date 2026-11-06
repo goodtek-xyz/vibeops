@@ -8,6 +8,7 @@ import { projectPaths } from "./paths.js";
 import { prNumberFromUrl } from "./pr-create.js";
 import { relPath } from "./task-context.js";
 import { resolveShipCommitMessage } from "./task-commit-msg.js";
+import { readCommitTrailers } from "./git-config.js";
 import { commitDirtyWorkingTree, docsCommitMessageFor } from "./task-git-commit.js";
 import { finishTaskWithPullRequest } from "./task-push-pr.js";
 import {
@@ -72,6 +73,7 @@ async function commitReshipMetadata(opts: {
   readonly taskFile: string;
   readonly taskId: string;
   readonly dryRun: boolean;
+  readonly trailers: readonly string[];
 }): Promise<void> {
   if (opts.dryRun) {
     log.info(dim("  would commit new-cycle metadata (Status stays Shipped)"));
@@ -82,6 +84,7 @@ async function commitReshipMetadata(opts: {
     opts.cwd,
     docsCommitMessageFor(opts.taskId, "new PR cycle metadata"),
     false,
+    opts.trailers,
   );
   if (!committed) {
     log.info(dim("No new-cycle metadata commit (Git Context already on disk)."));
@@ -122,6 +125,18 @@ export async function runPostMergeNewCycle(
   if (!dryRun && gitCfg === null) {
     process.exitCode = 1;
     return;
+  }
+
+  let trailers: string[];
+  try {
+    trailers = await readCommitTrailers(cwd);
+  } catch (e) {
+    log.error(e instanceof Error ? e.message : String(e));
+    process.exitCode = 1;
+    return;
+  }
+  if (dryRun && trailers.length > 0) {
+    log.info(dim(`  commits would carry trailers: ${trailers.join(" | ")}`));
   }
 
   const integrationBranch = gitCfg?.integrationBranch ?? "develop";
@@ -234,7 +249,7 @@ export async function runPostMergeNewCycle(
       provided: options.message,
       nonInteractive: options.nonInteractive === true,
     });
-    await commitDirtyWorkingTree(cwd, message, false);
+    await commitDirtyWorkingTree(cwd, message, false, trailers);
   } else {
     // Work may already be committed on the task branch (not merged into the base yet).
     let pending: string[];
@@ -278,6 +293,7 @@ export async function runPostMergeNewCycle(
       taskFile,
       taskId: parts.id,
       dryRun: false,
+      trailers,
     });
   }
 

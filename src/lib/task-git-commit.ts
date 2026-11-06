@@ -1,3 +1,4 @@
+import { commitTrailerArgs } from "./commit-trailers.js";
 import { dim, log } from "./logger.js";
 import {
   gitAddPaths,
@@ -57,12 +58,14 @@ export function taskScopedCommitMessage(
  * Commit all committable dirty paths (staged and unstaged, including deletions
  * and renames); returns whether a commit was created. Only paths whose
  * working-tree state is not yet in the index are passed to `git add`; staged
- * changes are already part of the commit.
+ * changes are already part of the commit. Each `trailers` entry
+ * (`.vibeops.json` `git.commitTrailers`) is added with `git commit --trailer`.
  */
 export async function commitDirtyWorkingTree(
   cwd: string,
   message: string,
   dryRun: boolean,
+  trailers: readonly string[],
 ): Promise<boolean> {
   const git = await readGitInfo(cwd);
   if (!git.isRepo || git.dirty !== true) return false;
@@ -76,6 +79,7 @@ export async function commitDirtyWorkingTree(
   }
   if (dryRun) {
     log.info(dim(`  would commit ${committable.length} path(s): ${message}`));
+    if (trailers.length > 0) log.info(dim(`  with trailers: ${trailers.join(" | ")}`));
     return true;
   }
   const committableSet = new Set(committable);
@@ -83,7 +87,7 @@ export async function commitDirtyWorkingTree(
     cwd,
     (await listUnstagedRelPaths(cwd)).filter((p) => committableSet.has(p)),
   );
-  await runGit(cwd, ["commit", "-q", "-m", message]);
+  await runGit(cwd, ["commit", "-q", "-m", message, ...commitTrailerArgs(trailers)]);
   log.ok(`Committed: ${message}`);
   return true;
 }
