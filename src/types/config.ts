@@ -16,6 +16,11 @@ export interface VibeopsGitConfig {
   integrationBranch: string;
   /** Production branch (e.g. main). Documented for release flow; not auto-merged by CLI. */
   productionBranch: string;
+  /**
+   * Optional git trailers (`"Token: value"`) added to every commit VibeOps creates
+   * (`git commit --trailer`). Validated by `src/lib/commit-trailers.ts`.
+   */
+  commitTrailers?: string[];
 }
 
 export interface VibeopsLlmConfig {

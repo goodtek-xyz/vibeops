@@ -55,7 +55,7 @@ test("ship commits a deletion that is already staged (git rm --cached + file rem
     git(dir, "rm", "-q", "--cached", "old-gateway");
     rmSync(join(dir, "old-gateway"));
     writeFileSync(join(dir, "keep.txt"), "k2\n");
-    assert.equal(await commitDirtyWorkingTree(dir, "feat(task-134): drop gateway", false), true);
+    assert.equal(await commitDirtyWorkingTree(dir, "feat(task-134): drop gateway", false, []), true);
     assert.deepEqual(headChanges(dir).sort(), ["D\told-gateway", "M\tkeep.txt"]);
     assert.ok(statusClean(dir));
   } finally {
@@ -67,7 +67,7 @@ test("ship commits when the only change is a staged deletion", async () => {
   const dir = repoWith({ "gone.txt": "x\n", "keep.txt": "k\n" });
   try {
     git(dir, "rm", "-q", "gone.txt");
-    assert.equal(await commitDirtyWorkingTree(dir, "chore: remove", false), true);
+    assert.equal(await commitDirtyWorkingTree(dir, "chore: remove", false, []), true);
     assert.deepEqual(headChanges(dir), ["D\tgone.txt"]);
     assert.ok(statusClean(dir));
   } finally {
@@ -79,7 +79,7 @@ test("ship stages and commits a tracked file deleted but not staged", async () =
   const dir = repoWith({ "old.txt": "x\n", "keep.txt": "k\n" });
   try {
     rmSync(join(dir, "old.txt"));
-    assert.equal(await commitDirtyWorkingTree(dir, "chore: remove", false), true);
+    assert.equal(await commitDirtyWorkingTree(dir, "chore: remove", false, []), true);
     assert.deepEqual(headChanges(dir), ["D\told.txt"]);
     assert.ok(statusClean(dir));
   } finally {
@@ -93,7 +93,7 @@ test("ship commits staged renames, including a rename modified afterwards", asyn
     git(dir, "mv", "c.txt", "c2.txt");
     git(dir, "mv", "d.txt", "d2.txt");
     writeFileSync(join(dir, "d2.txt"), "other\n".repeat(20) + "extra\n");
-    assert.equal(await commitDirtyWorkingTree(dir, "refactor: rename", false), true);
+    assert.equal(await commitDirtyWorkingTree(dir, "refactor: rename", false, []), true);
     const changes = headChanges(dir).map((l) => l.replace(/^R\d+/, "R")).sort();
     assert.deepEqual(changes, ["R\tc.txt\tc2.txt", "R\td.txt\td2.txt"]);
     assert.ok(statusClean(dir));
@@ -115,7 +115,7 @@ test("ship handles paths git would quote (spaces, non-ASCII) and glob characters
     writeFileSync(join(dir, "new file.txt"), "n\n");
     const listed = (await listWorkingTreeRelPaths(dir)).sort();
     assert.deepEqual(listed, ["lit[1].txt", "new file.txt", "sp ace.txt", "한글.txt"]);
-    assert.equal(await commitDirtyWorkingTree(dir, "chore: odd names", false), true);
+    assert.equal(await commitDirtyWorkingTree(dir, "chore: odd names", false, []), true);
     const changes = git(dir, "-c", "core.quotepath=false", "show", "--name-status", "--format=", "HEAD")
       .split("\n")
       .filter((l) => l.length > 0)
@@ -132,7 +132,7 @@ test("ship still leaves build artifacts out of the auto-commit", async () => {
     writeFileSync(join(dir, "src.txt"), "s2\n");
     mkdirSync(join(dir, "dist"));
     writeFileSync(join(dir, "dist", "out.js"), "x\n");
-    assert.equal(await commitDirtyWorkingTree(dir, "feat: x", false), true);
+    assert.equal(await commitDirtyWorkingTree(dir, "feat: x", false, []), true);
     assert.deepEqual(headChanges(dir), ["M\tsrc.txt"]);
     assert.match(git(dir, "status", "--porcelain=v1"), /^\?\? dist\/$/m);
   } finally {
@@ -165,7 +165,7 @@ test("ship -m with body and trailer: subject stays one line, trailer is a git tr
       "TASK-029",
       "fix: keep trailers\n\nCo-Authored-By: A <a@example.invalid>",
     );
-    assert.equal(await commitDirtyWorkingTree(dir, msg, false), true);
+    assert.equal(await commitDirtyWorkingTree(dir, msg, false, []), true);
     assert.equal(git(dir, "log", "-1", "--format=%s").trim(), "fix(task-029): keep trailers");
     assert.equal(
       git(dir, "log", "-1", "--format=%(trailers:key=Co-Authored-By,valueonly)").trim(),

@@ -4,6 +4,10 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+### Added
+
+- **`.vibeops.json` `git.commitTrailers`**: git trailers (e.g. `Co-Authored-By: …`) added with `git commit --trailer` to every commit `task ship` / `--new-cycle` makes, including the `mark shipped` and new-cycle metadata commits. Entries are validated strictly (one-line `Token: value`); an invalid entry exits 1 naming it. `--dry-run` lists them (TASK-057).
+
 ## 3.3.1 - 2026-10-18
 
 ### Changed

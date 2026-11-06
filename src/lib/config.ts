@@ -13,6 +13,7 @@ import {
   VIBEOPS_CONFIG_SCHEMA_VERSION,
 } from "../types/config.js";
 import { isVibeopsClientId } from "./init-clients.js";
+import { CommitTrailersConfigError, parseCommitTrailers } from "./commit-trailers.js";
 
 function parseClientsBlock(raw: unknown): VibeopsClientId[] | undefined {
   if (!Array.isArray(raw)) return undefined;
@@ -51,7 +52,14 @@ function parseGitBlock(raw: unknown): VibeopsGitConfig | undefined {
       ? o.productionBranch
       : undefined;
   if (!host || !integrationBranch || !productionBranch) return undefined;
-  return { remote, host, integrationBranch, productionBranch };
+  const commitTrailers = parseCommitTrailers(o.commitTrailers);
+  return {
+    remote,
+    host,
+    integrationBranch,
+    productionBranch,
+    ...(commitTrailers ? { commitTrailers } : {}),
+  };
 }
 
 function parseLlmBlock(raw: unknown): VibeopsLlmConfig | undefined {
@@ -94,7 +102,9 @@ export async function readConfig(root: string): Promise<VibeopsConfig | null> {
       };
     }
     return null;
-  } catch {
+  } catch (e) {
+    // An invalid commitTrailers entry is a visible error, not "no config".
+    if (e instanceof CommitTrailersConfigError) throw e;
     return null;
   }
 }
@@ -112,7 +122,12 @@ export function buildConfig(
     schemaVersion: VIBEOPS_CONFIG_SCHEMA_VERSION,
     createdAt: existing?.createdAt ?? nowIso ?? new Date().toISOString(),
     clients,
-    git,
+    git: {
+      ...git,
+      ...(git.commitTrailers === undefined && existing?.git?.commitTrailers
+        ? { commitTrailers: existing.git.commitTrailers }
+        : {}),
+    },
     llm: existing?.llm ?? { provider: "auto" },
     ...(existing?.merge !== undefined ? { merge: existing.merge } : {}),
     ...(existing?.baseline !== undefined ? { baseline: existing.baseline } : {}),
