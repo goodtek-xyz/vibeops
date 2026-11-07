@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 
 import { readText } from "../lib/filesystem.js";
-import { requireGitConfig } from "../lib/git-config.js";
+import { readCommitTrailers, requireGitConfig } from "../lib/git-config.js";
 import { BASELINE_REPAIR_SECTION, preflightBaseline } from "../lib/project-baseline.js";
 import {
   gitCommitsAhead,
@@ -77,6 +77,8 @@ interface ShipContext {
   readonly dryRun: boolean;
   readonly nonInteractive: boolean;
   readonly options: TaskShipCommandOptions;
+  /** `.vibeops.json` `git.commitTrailers` for every commit ship makes. */
+  readonly trailers: readonly string[];
 }
 
 function describePushFailure(message: string): string {
@@ -133,10 +135,12 @@ async function commitShipMetadata(opts: {
   readonly taskFile: string;
   readonly taskId: string;
   readonly dryRun: boolean;
+  readonly trailers: readonly string[];
 }): Promise<void> {
   if (opts.dryRun) {
     log.info(dim("  would set Status → Shipped"));
     log.info(dim("  would commit ship metadata"));
+    if (opts.trailers.length > 0) log.info(dim(`  with trailers: ${opts.trailers.join(" | ")}`));
     return;
   }
 
@@ -147,6 +151,7 @@ async function commitShipMetadata(opts: {
     opts.cwd,
     docsCommitMessageFor(opts.taskId, "mark shipped"),
     false,
+    opts.trailers,
   );
   if (!committed) {
     log.warn("No file changes for ship metadata commit — check TASK Status on the remote branch.");
@@ -155,7 +160,7 @@ async function commitShipMetadata(opts: {
 
 /** State 1: first submit — push the task branch and open a new PR/MR. */
 async function runFirstShip(ctx: ShipContext): Promise<void> {
-  const { cwd, taskId, taskFile, meta, relFile, dryRun, nonInteractive, options } = ctx;
+  const { cwd, taskId, taskFile, meta, relFile, dryRun, nonInteractive, options, trailers } = ctx;
   let body = ctx.body;
 
   let resultOk = hasNonEmptySection(body, "Result");
@@ -219,7 +224,7 @@ async function runFirstShip(ctx: ShipContext): Promise<void> {
     log.info("  · commit implementation (TASK-scoped message) + ship metadata (Status → Shipped)");
     log.info("  · push task branch once, open a new MR/PR (unless --no-pr)");
     const partsDry = parseTaskFilename(taskFile);
-    await commitShipMetadata({ cwd, taskFile, taskId: partsDry.id, dryRun: true });
+    await commitShipMetadata({ cwd, taskFile, taskId: partsDry.id, dryRun: true, trailers });
     await finishTaskWithPullRequest({
       cwd,
       taskFile,
@@ -248,10 +253,10 @@ async function runFirstShip(ctx: ShipContext): Promise<void> {
       provided: options.message,
       nonInteractive,
     });
-    await commitDirtyWorkingTree(cwd, message, false);
+    await commitDirtyWorkingTree(cwd, message, false, trailers);
   }
 
-  await commitShipMetadata({ cwd, taskFile, taskId: parts.id, dryRun: false });
+  await commitShipMetadata({ cwd, taskFile, taskId: parts.id, dryRun: false, trailers });
 
   const prResult = await finishTaskWithPullRequest({
     cwd,
@@ -278,7 +283,7 @@ async function runFirstShip(ctx: ShipContext): Promise<void> {
 
 /** State 2: an open PR exists — commit + push to update it (no new PR). */
 async function runUpdateOpenPr(ctx: ShipContext): Promise<void> {
-  const { cwd, taskId, taskFile, meta, body, prCtx, dryRun, nonInteractive, options } = ctx;
+  const { cwd, taskId, taskFile, meta, body, prCtx, dryRun, nonInteractive, options, trailers } = ctx;
 
   const gitCtx = await readGitContext(taskFile);
   if (gitCtx === null) {
@@ -319,7 +324,12 @@ async function runUpdateOpenPr(ctx: ShipContext): Promise<void> {
   if (meta.status === "in_progress") {
     await updateInlineStatus(taskFile, "shipped");
     log.ok("Status → Shipped");
-    await commitDirtyWorkingTree(cwd, docsCommitMessageFor(taskId, "mark shipped"), false);
+    await commitDirtyWorkingTree(
+      cwd,
+      docsCommitMessageFor(taskId, "mark shipped"),
+      false,
+      trailers,
+    );
   }
 
   if (options.noCommit === true) {
@@ -335,7 +345,7 @@ async function runUpdateOpenPr(ctx: ShipContext): Promise<void> {
       provided: options.message,
       nonInteractive,
     });
-    await commitDirtyWorkingTree(cwd, message, false);
+    await commitDirtyWorkingTree(cwd, message, false, trailers);
   }
 
   const remoteExists = await gitRemoteBranchExists(cwd, remote, gitCtx.taskBranch);
@@ -462,6 +472,15 @@ export async function taskShipCommand(
     return;
   }
 
+  let trailers: string[];
+  try {
+    trailers = await readCommitTrailers(cwd);
+  } catch (e) {
+    log.error(e instanceof Error ? e.message : String(e));
+    process.exitCode = 1;
+    return;
+  }
+
   const ctx: ShipContext = {
     cwd,
     taskId,
@@ -473,6 +492,7 @@ export async function taskShipCommand(
     dryRun,
     nonInteractive,
     options,
+    trailers,
   };
 
   switch (action) {

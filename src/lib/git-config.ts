@@ -28,3 +28,8 @@ export async function requireGitConfig(cwd: string): Promise<VibeopsGitConfig> {
   }
   return config.git;
 }
+
+/** `git.commitTrailers` from `.vibeops.json` (empty when unset or no config); throws when invalid. */
+export async function readCommitTrailers(cwd: string): Promise<string[]> {
+  return (await readConfig(cwd))?.git?.commitTrailers ?? [];
+}

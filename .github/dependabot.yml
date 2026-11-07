@@ -23,6 +23,14 @@ updates:
         dependency-type: production
         update-types: [minor, patch]
     # Majors open one PR per dependency (not matched by a group).
+    # Majors judged and closed in TASK-056; ignored while the reason holds.
+    ignore:
+      # Types follow the lowest supported Node (`engines.node` `>=20`).
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # commander 15 requires Node >=22.12; ignored until the Node floor is raised.
+      - dependency-name: commander
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
