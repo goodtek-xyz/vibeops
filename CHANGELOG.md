@@ -4,6 +4,8 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 3.4.1 - 2026-11-08
+
 ### Fixed
 
 - **Merge gate: a re-run supersedes the earlier run of the same check.** `statusCheckRollup` keeps every run of a check on the head commit, and any failure among them refused the merge — so a check that failed once (e.g. a transient host error) and then passed on a re-run still blocked `task merge`. The gate now keeps the latest item per check identity (CheckRun: workflow + name; StatusContext: context), latest = started last (`startedAt`, then `completedAt`; still running = newest). A later failure still beats an earlier pass, a newer pending run still waits, and when the order is unknown (an item without `startedAt`, or an exact tie) every run of that check is kept, so the gate stays fail-closed (D-016, TASK-059).
