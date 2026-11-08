@@ -8,6 +8,7 @@ import { beforeEach, test } from "node:test";
 
 import {
   checkNameMatches,
+  classifyRollup,
   classifyRollupItem,
   evaluateCheckGate,
 } from "../dist/lib/check-rollup.js";
@@ -159,6 +160,13 @@ const checkRun = (name, status, conclusion) => ({
   workflowName: "wf",
   detailsUrl: "https://example.invalid",
 });
+// A CheckRun with timing (the `gh pr view` statusCheckRollup shape).
+const timedRun = (name, conclusion, startedAt, completedAt, workflowName = "wf") => ({
+  ...checkRun(name, completedAt === null ? "IN_PROGRESS" : "COMPLETED", conclusion),
+  workflowName,
+  startedAt,
+  completedAt,
+});
 const statusContext = (context, state) => ({
   __typename: "StatusContext",
   context,
@@ -253,11 +261,81 @@ test("evaluateCheckGate: red beats pending; missing required is pending", () => 
   assert.deepEqual(missing.missingRequired, ["Z*"]);
 });
 
-test("evaluateCheckGate: duplicate check names — any failure fails", () => {
+test("evaluateCheckGate: duplicate check names without timing — any failure fails", () => {
   const pass = classifyRollupItem(checkRun("build", "COMPLETED", "SUCCESS"));
   const fail = classifyRollupItem(checkRun("build", "COMPLETED", "FAILURE"));
   assert.equal(evaluateCheckGate([pass, fail], ["build"]).state, "red");
   assert.equal(evaluateCheckGate([fail, pass], ["build"]).state, "red");
+});
+
+test("classifyRollup: older FAILURE + newer SUCCESS (re-run) → passes", () => {
+  const checks = classifyRollup([
+    timedRun("build", "FAILURE", "2026-01-01T10:00:00Z", "2026-01-01T10:01:00Z"),
+    timedRun("build", "SUCCESS", "2026-01-01T10:05:00Z", "2026-01-01T10:06:00Z"),
+  ]);
+  assert.equal(checks.length, 1);
+  assert.equal(checks[0].detail, "SUCCESS");
+  assert.equal(evaluateCheckGate(checks, ["build"]).state, "green");
+});
+
+test("classifyRollup: older SUCCESS + newer FAILURE → fails", () => {
+  const checks = classifyRollup([
+    timedRun("build", "SUCCESS", "2026-01-01T10:00:00Z", "2026-01-01T10:01:00Z"),
+    timedRun("build", "FAILURE", "2026-01-01T10:05:00Z", "2026-01-01T10:06:00Z"),
+  ]);
+  const gate = evaluateCheckGate(checks);
+  assert.equal(gate.state, "red");
+  assert.deepEqual(gate.failed.map((c) => c.detail), ["FAILURE"]);
+});
+
+test("classifyRollup: a re-run attempt of an old workflow run that finishes later wins", () => {
+  // Rollup order as GitHub returned it: old run's attempt 4 (failed) listed before the newer
+  // run (passed), but the attempt started and finished after it.
+  const checks = classifyRollup([
+    timedRun("Secret scan / gitleaks", "FAILURE", "2026-01-01T09:07:05Z", "2026-01-01T09:07:14Z", "CI"),
+    timedRun("Secret scan / gitleaks", "SUCCESS", "2026-01-01T09:05:49Z", "2026-01-01T09:06:00Z", "CI"),
+    timedRun("Test", "SUCCESS", "2026-01-01T08:50:52Z", "2026-01-01T08:51:23Z", "CI"),
+    timedRun("Test", "SUCCESS", "2026-01-01T09:05:49Z", "2026-01-01T09:06:22Z", "CI"),
+  ]);
+  const gate = evaluateCheckGate(checks);
+  assert.equal(gate.state, "red");
+  assert.deepEqual(gate.failed.map((c) => c.name), ["Secret scan / gitleaks"]);
+  assert.equal(gate.passed.length, 1);
+});
+
+test("classifyRollup: newer pending re-run → pending, even after a failure", () => {
+  const checks = classifyRollup([
+    timedRun("build", "FAILURE", "2026-01-01T10:00:00Z", "2026-01-01T10:01:00Z"),
+    timedRun("build", null, "2026-01-01T10:05:00Z", null),
+  ]);
+  assert.equal(evaluateCheckGate(checks).state, "pending");
+});
+
+test("classifyRollup: same check name in different workflows are different checks", () => {
+  const checks = classifyRollup([
+    timedRun("test", "FAILURE", "2026-01-01T10:00:00Z", "2026-01-01T10:01:00Z", "Unit"),
+    timedRun("test", "SUCCESS", "2026-01-01T10:05:00Z", "2026-01-01T10:06:00Z", "E2E"),
+  ]);
+  assert.equal(checks.length, 2);
+  assert.equal(evaluateCheckGate(checks).state, "red");
+});
+
+test("classifyRollup: unknown order fails closed — every run of that check is kept", () => {
+  // Missing startedAt (and Go's zero time, which gh prints for unset times) on one item.
+  for (const unset of [null, "0001-01-01T00:00:00Z"]) {
+    const checks = classifyRollup([
+      timedRun("build", "FAILURE", unset, "2026-01-01T10:01:00Z"),
+      timedRun("build", "SUCCESS", "2026-01-01T10:05:00Z", "2026-01-01T10:06:00Z"),
+    ]);
+    assert.equal(checks.length, 2, String(unset));
+    assert.equal(evaluateCheckGate(checks).state, "red", String(unset));
+  }
+  // Exact tie on both timestamps: both kept.
+  const tie = classifyRollup([
+    timedRun("build", "SUCCESS", "2026-01-01T10:00:00Z", "2026-01-01T10:01:00Z"),
+    timedRun("build", "FAILURE", "2026-01-01T10:00:00Z", "2026-01-01T10:01:00Z"),
+  ]);
+  assert.equal(evaluateCheckGate(tie).state, "red");
 });
 
 test("GitLab pipeline mapping: manual / unknown are red, scheduled is pending", () => {
@@ -394,6 +472,30 @@ test("merge: duplicate check name with one failure refuses", async () => {
     ghPr([checkRun("build", "COMPLETED", "SUCCESS"), checkRun("build", "COMPLETED", "FAILURE")]),
   ]);
   await assert.rejects(merge({ requiredChecks: ["build"] }), /"build" \(FAILURE\)/);
+  assert.deepEqual(mergeCalls(), []);
+});
+
+test("merge: failed check superseded by a newer passing re-run merges", async () => {
+  queueViews([
+    ghPr([
+      timedRun("build", "FAILURE", "2026-01-01T10:00:00Z", "2026-01-01T10:01:00Z"),
+      timedRun("build", "SUCCESS", "2026-01-01T10:05:00Z", "2026-01-01T10:06:00Z"),
+    ]),
+  ]);
+  await merge({ requiredChecks: ["build"] });
+  assert.deepEqual(mergeCalls(), [
+    ["pr", "merge", "7", "--squash", "--match-head-commit", "abc123"],
+  ]);
+});
+
+test("merge: passed check superseded by a newer failing re-run refuses", async () => {
+  queueViews([
+    ghPr([
+      timedRun("build", "SUCCESS", "2026-01-01T10:00:00Z", "2026-01-01T10:01:00Z"),
+      timedRun("build", "FAILURE", "2026-01-01T10:05:00Z", "2026-01-01T10:06:00Z"),
+    ]),
+  ]);
+  await assert.rejects(merge(), /failed checks: "build" \(FAILURE\)/);
   assert.deepEqual(mergeCalls(), []);
 });
 
