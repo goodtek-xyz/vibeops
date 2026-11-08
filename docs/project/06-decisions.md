@@ -69,3 +69,7 @@ With `baseline.mode: enforce` a broken baseline (e.g. a changed crew pin) stoppe
 Add subsequent decisions in the `D-NNN · one-line summary` form.
 Keep each entry short — one paragraph of "why" and "consequence" only.
 -->
+
+## D-016 · The merge gate judges the latest run of each check (3.4.1+)
+
+`statusCheckRollup` lists every run of a check on the head commit: re-running a failed job adds a new attempt, a new `pull_request` run for the same SHA adds a new item, and the old ones stay. The gate failed on any failed item, so a check that failed on a transient host error and passed on a re-run kept `task merge` refused. Decision: keep the latest item per check identity — CheckRun = `workflowName` + `name`, StatusContext = `context` — ordered by `startedAt` (a re-run starts after the run it repeats; gh exports a StatusContext's `createdAt` as `startedAt`), ties by `completedAt` (missing = still running = newest). The latest verdict stands: a later failure beats an earlier pass, even when it is a re-run attempt of an older workflow run; a newer pending item waits. Unknown order (any item of the identity without `startedAt`, including Go's zero time, or an exact tie) keeps every item, so the earlier "any failure fails" rule still applies there (fail closed). `workflowName` carries no event, so runs of one workflow from different events share an identity in the rollup; the Actions part of the gate (D-007) still requires the latest run per workflow + event to pass, so a failed run from another event is not hidden.

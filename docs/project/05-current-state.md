@@ -4,7 +4,7 @@
 
 ## Stage
 
-- **Package:** `@goodtek/vibeops` **3.4.0** (`.vibeops.json` `git.commitTrailers`).
+- **Package:** `@goodtek/vibeops` **3.4.1** (merge gate: latest run per check).
 - **CLI lifecycle:** `init` · `task add` · `task del` · **`task ship` (state-aware)** · `task merge` · `task sync` · `pull` · `task release` · **`status` (Now/Next)** · `llm`.
 - **Breaking (2.5.0):** `task reship` removed — use `task ship` / `--new-cycle`.
 - **2.5.1:** `task add` preflight + sync diagnosis + incomplete resume.
@@ -12,6 +12,7 @@
 - **3.0.0 (breaking):** merge gate — CheckRun/StatusContext classification fix, fail-closed (incl. no checks unless `merge.allowNoChecks`), strict `merge` config, SHA-pinned merges; requires gh ≥ 2.13.0 (TASK-020).
 - **3.1.1:** `task ship` commits staged / unstaged deletions and renames (`porcelain=v1 -z`, `git add -A` only for unstaged paths) (TASK-022).
 - **3.1.2:** merge gate waits for the PR's own GitHub Actions runs (expected `pull_request` workflows + all runs for the head SHA), head re-read before merge (TASK-024); CI on PRs + `main` (lint, typecheck, build, tests, smoke, gitleaks), npm Trusted Publishing workflow, OSS hygiene (TASK-023).
+- **3.4.1:** merge gate judges the latest run of each check — a passing re-run supersedes an earlier failure, fail-closed when the order is unknown (D-016, TASK-059).
 - **3.4.0:** `.vibeops.json` `git.commitTrailers` — trailers (`git commit --trailer`) on commits VibeOps makes (TASK-057).
 - **3.3.1:** `init` lists the coding agents as Claude Code, Codex CLI, Cursor (Cursor still pre-checked) (TASK-054).
 - **3.3.0:** `task add --repair-baseline` (D-015, TASK-052).
@@ -43,18 +44,18 @@
 | Init remote UX | `src/lib/git-remote.ts`, `src/lib/git-host-cli.ts` | Ask host → create/connect |
 | Status Now/Next | `src/commands/status.ts` | Human layout |
 | Worktrees / lock / TASK ids | `src/lib/git-worktree.ts`, `src/lib/task-lock.ts`, `src/lib/task-id-allocation.ts` | D-006 |
-| Merge gate | `src/lib/check-rollup.ts`, `src/lib/github-actions-gate.ts`, `src/lib/merge-base-freshness.ts`, `src/lib/merge-config.ts`, `src/lib/pr-create.ts` (`waitForMergeGate`) | Fail closed; rollup + GitHub Actions runs (D-007), dynamic runs ignored (D-011); head must contain base (D-008); `.vibeops.json` `merge` block |
+| Merge gate | `src/lib/check-rollup.ts`, `src/lib/github-actions-gate.ts`, `src/lib/merge-base-freshness.ts`, `src/lib/merge-config.ts`, `src/lib/pr-create.ts` (`waitForMergeGate`) | Fail closed; rollup + GitHub Actions runs (D-007), dynamic runs ignored (D-011), latest run per check (D-016); head must contain base (D-008); `.vibeops.json` `merge` block |
 
 ## Next
 
-- Consumers: `npm i -g @goodtek/vibeops@3.4.0` (or `volta install @goodtek/vibeops@3.4.0`). Repos without CI: `"merge": {"allowNoChecks": true}`.
+- Consumers: `npm i -g @goodtek/vibeops@3.4.1` (or `volta install @goodtek/vibeops@3.4.1`). Repos without CI: `"merge": {"allowNoChecks": true}`.
 - Maintainers: TASK PRs → `develop`; release = release-prep TASK on `develop` → `vibeops task release --tag` (develop → main after its CI, then tag `vX.Y.Z` on the merge commit) → `publish.yml` publishes via npm Trusted Publishing (no token; 09-deployment.md). Manual `pnpm publish:npm` is a fallback only.
 
 ## Handoff (2026-10-18)
 
 State at handoff — clean, ready to start the next feature from `develop`:
 
-- Released: `@goodtek/vibeops` **3.4.0** (via `task release --tag`) on npm (`latest`, SLSA provenance); each release is tagged `vX.Y.Z` on its release merge commit on `main`, published by `publish.yml` (Trusted Publishing, connection *Valid*). Releases go through `develop → main` (D-010; the first was 3.1.8).
+- Released: `@goodtek/vibeops` **3.4.1** (via `task release --tag`) on npm (`latest`, SLSA provenance); each release is tagged `vX.Y.Z` on its release merge commit on `main`, published by `publish.yml` (Trusted Publishing, connection *Valid*). Releases go through `develop → main` (D-010; the first was 3.1.8).
 - Branches: `develop` (default, integration) and `main` (releases only). No other branches and no worktrees.
 - Open PRs: none. Dependabot minor / patch groups are merged after CI (#34 eslint, #35 @inquirer/prompts); the major PRs #36 `@types/node`, #37 `typescript`, #38 `commander` were judged and closed with reasons (TASK-056), with `ignore` rules in `.github/dependabot.yml` for the `@types/node` and `commander` majors.
 - TASKs: none In Progress (TASK-000 is the template). TASK-001…017 still carry the old status words `done` / `Review` from before the Shipped vocabulary.
