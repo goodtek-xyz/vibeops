@@ -12,6 +12,7 @@
 - **3.0.0 (breaking):** merge gate — CheckRun/StatusContext classification fix, fail-closed (incl. no checks unless `merge.allowNoChecks`), strict `merge` config, SHA-pinned merges; requires gh ≥ 2.13.0 (TASK-020).
 - **3.1.1:** `task ship` commits staged / unstaged deletions and renames (`porcelain=v1 -z`, `git add -A` only for unstaged paths) (TASK-022).
 - **3.1.2:** merge gate waits for the PR's own GitHub Actions runs (expected `pull_request` workflows + all runs for the head SHA), head re-read before merge (TASK-024); CI on PRs + `main` (lint, typecheck, build, tests, smoke, gitleaks), npm Trusted Publishing workflow, OSS hygiene (TASK-023).
+- **Unreleased (next patch):** merge gate judges the latest run of each check — a passing re-run supersedes an earlier failure, fail-closed when the order is unknown (D-016, TASK-059).
 - **3.4.0:** `.vibeops.json` `git.commitTrailers` — trailers (`git commit --trailer`) on commits VibeOps makes (TASK-057).
 - **3.3.1:** `init` lists the coding agents as Claude Code, Codex CLI, Cursor (Cursor still pre-checked) (TASK-054).
 - **3.3.0:** `task add --repair-baseline` (D-015, TASK-052).
@@ -43,7 +44,7 @@
 | Init remote UX | `src/lib/git-remote.ts`, `src/lib/git-host-cli.ts` | Ask host → create/connect |
 | Status Now/Next | `src/commands/status.ts` | Human layout |
 | Worktrees / lock / TASK ids | `src/lib/git-worktree.ts`, `src/lib/task-lock.ts`, `src/lib/task-id-allocation.ts` | D-006 |
-| Merge gate | `src/lib/check-rollup.ts`, `src/lib/github-actions-gate.ts`, `src/lib/merge-base-freshness.ts`, `src/lib/merge-config.ts`, `src/lib/pr-create.ts` (`waitForMergeGate`) | Fail closed; rollup + GitHub Actions runs (D-007), dynamic runs ignored (D-011); head must contain base (D-008); `.vibeops.json` `merge` block |
+| Merge gate | `src/lib/check-rollup.ts`, `src/lib/github-actions-gate.ts`, `src/lib/merge-base-freshness.ts`, `src/lib/merge-config.ts`, `src/lib/pr-create.ts` (`waitForMergeGate`) | Fail closed; rollup + GitHub Actions runs (D-007), dynamic runs ignored (D-011), latest run per check (D-016); head must contain base (D-008); `.vibeops.json` `merge` block |
 
 ## Next
 

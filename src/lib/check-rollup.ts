@@ -5,6 +5,11 @@
  * GitHub returns two item shapes:
  * - `CheckRun` (GitHub Actions, check apps): `status` + `conclusion`, no `state`.
  * - `StatusContext` (commit status API): `state`, no `status`/`conclusion`.
+ *
+ * The rollup keeps every run of a check: a re-run (new attempt or new workflow run on the
+ * same head SHA) adds an item next to the old one. {@link latestPerCheck} keeps the latest
+ * item per check identity, so a passed re-run supersedes an earlier failure and a later
+ * failure supersedes an earlier pass.
  */
 
 export type CheckVerdict = "passed" | "failed" | "pending";
@@ -19,6 +24,9 @@ export interface RawRollupItem {
   readonly state?: string | null;
   readonly detailsUrl?: string | null;
   readonly targetUrl?: string | null;
+  /** RFC 3339. gh exports a StatusContext's `createdAt` as `startedAt`; Go's zero time = unset. */
+  readonly startedAt?: string | null;
+  readonly completedAt?: string | null;
 }
 
 export interface ClassifiedCheck {
@@ -27,6 +35,11 @@ export interface ClassifiedCheck {
   readonly verdict: CheckVerdict;
   /** Raw host value that drove the verdict (e.g. `FAILURE`, `IN_PROGRESS`). */
   readonly detail: string;
+  /** CheckRun: its workflow (`workflowName`), part of the check identity. StatusContext: `null`. */
+  readonly workflow?: string | null;
+  /** Epoch ms of `startedAt` / `completedAt`; `null` when missing or unset. */
+  readonly startedAt?: number | null;
+  readonly completedAt?: number | null;
 }
 
 /** GitHub GraphQL `CheckStatusState` values other than COMPLETED. */
@@ -56,7 +69,24 @@ function isCheckRun(item: RawRollupItem): boolean {
   return (item.status ?? null) !== null || (item.conclusion ?? null) !== null;
 }
 
+/** RFC 3339 → epoch ms; missing, unparseable or Go's zero time (`0001-01-01T00:00:00Z`) → `null`. */
+function timestamp(raw: string | null | undefined): number | null {
+  if (raw === null || raw === undefined || raw.trim() === "") return null;
+  const ms = Date.parse(raw);
+  return Number.isFinite(ms) && ms > 0 ? ms : null;
+}
+
 export function classifyRollupItem(item: RawRollupItem): ClassifiedCheck {
+  const base = classifyVerdict(item);
+  return {
+    ...base,
+    workflow: base.kind === "CheckRun" ? (item.workflowName ?? "").trim() || null : null,
+    startedAt: timestamp(item.startedAt),
+    completedAt: timestamp(item.completedAt),
+  };
+}
+
+function classifyVerdict(item: RawRollupItem): ClassifiedCheck {
   if (isCheckRun(item)) {
     const name = (item.name ?? "").trim() || "(unnamed check run)";
     const status = upper(item.status);
@@ -98,8 +128,62 @@ export function classifyRollupItem(item: RawRollupItem): ClassifiedCheck {
   return { name, kind: "StatusContext", verdict: "failed", detail: state || "MISSING_STATE" };
 }
 
+/** Classified, latest item per check identity ({@link latestPerCheck}). */
 export function classifyRollup(items: readonly RawRollupItem[] | null | undefined): ClassifiedCheck[] {
-  return (items ?? []).map(classifyRollupItem);
+  return latestPerCheck((items ?? []).map(classifyRollupItem));
+}
+
+/**
+ * Check identity: CheckRun = workflow + name (two workflows may both have a `test` job);
+ * StatusContext = context. GitHub's `workflowName` carries no event, so runs of one workflow
+ * from different events share an identity here; the Actions part of the gate
+ * (`evaluateActionsRuns`) still judges the latest run per workflow + event.
+ */
+function checkIdentity(c: ClassifiedCheck): string {
+  return c.kind === "CheckRun"
+    ? `CheckRun\u0000${c.workflow ?? ""}\u0000${c.name}`
+    : `StatusContext\u0000${c.name}`;
+}
+
+/**
+ * Keep the latest item per check identity, like GitHub's merge box, which shows the latest
+ * result of each check. "Latest" = the item that started last (`startedAt`; a re-run starts
+ * after the run it repeats), ties broken by `completedAt` (an in-flight item with no
+ * `completedAt` is newest). Its verdict stands: a newer pending item is pending, a newer
+ * failure fails even after an earlier pass.
+ *
+ * Fail closed when the order is unknown: if any item of an identity lacks `startedAt`
+ * (e.g. queued, or an older gh), or the latest items tie exactly, every item of that
+ * identity is kept — so any failure among them still fails and any pending still waits.
+ */
+export function latestPerCheck(checks: readonly ClassifiedCheck[]): ClassifiedCheck[] {
+  const groups = new Map<string, ClassifiedCheck[]>();
+  for (const c of checks) {
+    const key = checkIdentity(c);
+    const group = groups.get(key);
+    if (group === undefined) groups.set(key, [c]);
+    else group.push(c);
+  }
+  const out: ClassifiedCheck[] = [];
+  for (const group of groups.values()) {
+    if (group.length === 1 || group.some((c) => (c.startedAt ?? null) === null)) {
+      out.push(...group);
+      continue;
+    }
+    const sorted = [...group].sort(compareRecency);
+    const newest = sorted[sorted.length - 1]!;
+    out.push(...sorted.filter((c) => compareRecency(c, newest) === 0));
+  }
+  return out;
+}
+
+/** Ascending recency: `startedAt`, then `completedAt` (missing = still running = newest). */
+function compareRecency(a: ClassifiedCheck, b: ClassifiedCheck): number {
+  const started = (a.startedAt ?? 0) - (b.startedAt ?? 0);
+  if (started !== 0) return started;
+  const ac = a.completedAt ?? Number.POSITIVE_INFINITY;
+  const bc = b.completedAt ?? Number.POSITIVE_INFINITY;
+  return ac === bc ? 0 : ac < bc ? -1 : 1;
 }
 
 /** Exact name, or a `*` glob (e.g. `lint*`, `* · linux`). */
