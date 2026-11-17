@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { readTextOrNull } from "./filesystem.js";
 import { runGit } from "./git.js";
+import { glabSetDefaultBranchArgs } from "./git-remote.js";
 import { dim, log } from "./logger.js";
 import { VIBEOPS_CONFIG_FILE } from "./paths.js";
 import type { VibeopsGitConfig } from "../types/config.js";
@@ -120,7 +121,7 @@ export async function runBaselineChecks(
         : `${git.remote} default branch is ${def}`,
     fix:
       git.host === "gitlab"
-        ? `glab api --method PUT projects/:id --raw-field default_branch=${git.integrationBranch}`
+        ? `glab ${glabSetDefaultBranchArgs(git.integrationBranch, git.gitlabUrl).join(" ")}`
         : `gh repo edit --default-branch ${git.integrationBranch}`,
   });
   if (cfg.crew !== null) {

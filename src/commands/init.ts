@@ -19,7 +19,17 @@ import {
   isGitRepository,
 } from "../lib/git.js";
 import { formatGitPolicySummary, askGitPolicy, parseGitPolicyArg, resolvePreset } from "../lib/git-policy.js";
-import { ensureOriginRemote, setRemoteDefaultBranch } from "../lib/git-remote.js";
+import {
+  ensureOriginRemote,
+  glabSetDefaultBranchArgs,
+  setRemoteDefaultBranch,
+} from "../lib/git-remote.js";
+import {
+  DEFAULT_GITLAB_URL,
+  GitlabUrlError,
+  parseGitlabBaseUrl,
+  resolveGitlabBaseUrl,
+} from "../lib/gitlab-url.js";
 import {
   askInitClients,
   formatClientsList,
@@ -46,6 +56,8 @@ export interface InitOptions {
   integrationBranch?: string;
   productionBranch?: string;
   gitHost?: string;
+  /** GitLab base URL (`--gitlab-url`); default https://gitlab.com. */
+  gitlabUrl?: string;
 }
 
 const DEFAULT_COMMIT_MESSAGE = "chore: initialize vibeops project";
@@ -55,6 +67,14 @@ function deriveProjectName(root: string, explicit: string | undefined): string {
   const base = basename(root);
   if (base.length > 0 && base !== "/") return base;
   return "untitled-project";
+}
+
+/**
+ * `gitlabUrl` key for the git block: always present (so re-init does not fall back to the
+ * previous value), `undefined` for GitLab.com so the default is not written to `.vibeops.json`.
+ */
+function withGitlabUrl(url: string | undefined): { gitlabUrl: string | undefined } {
+  return { gitlabUrl: url === undefined || url === DEFAULT_GITLAB_URL ? undefined : url };
 }
 
 function parseGitHostArg(raw: string | undefined): GitHost | null {
@@ -256,11 +276,32 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
     return;
   }
 
+  let gitlabUrlFromFlag: string | undefined;
+  if (options.gitlabUrl !== undefined) {
+    if (hostFromFlag === "github") {
+      log.error("--gitlab-url applies to GitLab only; drop it or use --git-host gitlab.");
+      process.exitCode = 1;
+      return;
+    }
+    try {
+      gitlabUrlFromFlag = parseGitlabBaseUrl(options.gitlabUrl).url;
+    } catch (e) {
+      if (e instanceof GitlabUrlError) {
+        log.error(`Invalid --gitlab-url: ${e.message}`);
+        process.exitCode = 1;
+        return;
+      }
+      throw e;
+    }
+  }
+  const gitlabUrl = gitlabUrlFromFlag ?? existingConfig?.git?.gitlabUrl;
+
   let gitConfig: VibeopsGitConfig = {
     remote: "origin",
-    host: hostFromFlag ?? existingConfig?.git?.host ?? "github",
+    host: hostFromFlag ?? (gitlabUrlFromFlag ? "gitlab" : undefined) ?? existingConfig?.git?.host ?? "github",
     integrationBranch: branchPolicy.integrationBranch,
     productionBranch: branchPolicy.productionBranch,
+    ...withGitlabUrl(gitlabUrl),
   };
 
   const name =
@@ -275,6 +316,9 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
   log.info(`  vibeops: ${config.vibeopsVersion}`);
   log.info(`  clients: ${formatClientsList(clients)}`);
   log.info(`  git:     ${formatGitPolicySummary(gitConfig)}`);
+  if (gitConfig.host === "gitlab") {
+    log.info(`  gitlab:  ${resolveGitlabBaseUrl(gitConfig.gitlabUrl).url}`);
+  }
   if (force && reinit) log.warn("Template files will be overwritten where they already exist.");
   log.blank();
 
@@ -335,15 +379,20 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
     dryRun,
     nonInteractive: !interactive,
     allowMissing: options.allowNoRemote === true,
-    preferredHost: hostFromFlag ?? existingConfig?.git?.host,
+    preferredHost: gitConfig.host === "gitlab" ? "gitlab" : (hostFromFlag ?? existingConfig?.git?.host),
     defaultBranch: gitConfig.productionBranch,
+    gitlabUrl,
+    gitlabUrlFromFlag: gitlabUrlFromFlag !== undefined,
   });
 
   if (remote !== null) {
+    const previous = gitConfig.gitlabUrl;
     gitConfig = {
       ...gitConfig,
       remote: remote.remote,
       host: remote.host,
+      // The URL the remote was set up with (interactive prompt may change it).
+      ...withGitlabUrl(remote.host === "gitlab" ? remote.gitlabUrl : previous),
     };
   }
 
@@ -389,14 +438,21 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
         // A repository init just created defaults to the integration branch, so PRs and
         // clones start from it; an existing repository's setting is left to its owner.
         if (remote.created === true) {
-          if (await setRemoteDefaultBranch(projectRoot, gitConfig.host, gitConfig.integrationBranch)) {
+          if (
+            await setRemoteDefaultBranch(
+              projectRoot,
+              gitConfig.host,
+              gitConfig.integrationBranch,
+              gitConfig.gitlabUrl,
+            )
+          ) {
             log.ok(`default branch → ${gitConfig.integrationBranch}`);
           } else {
             log.warn(`Could not set the default branch to ${gitConfig.integrationBranch}.`);
             log.info(
               dim(
                 gitConfig.host === "gitlab"
-                  ? `  glab api --method PUT projects/:id --raw-field default_branch=${gitConfig.integrationBranch}`
+                  ? `  glab ${glabSetDefaultBranchArgs(gitConfig.integrationBranch, gitConfig.gitlabUrl).join(" ")}`
                   : `  gh repo edit --default-branch ${gitConfig.integrationBranch}`,
               ),
             );

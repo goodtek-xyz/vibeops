@@ -114,7 +114,7 @@ export async function finishTaskWithPullRequest(
     return { ok: false };
   }
 
-  const detectedHost = detectGitHost(remoteUrl);
+  const detectedHost = detectGitHost(remoteUrl, gitCfg.gitlabUrl);
   if (detectedHost !== null && detectedHost !== gitCfg.host) {
     log.warn(
       `Remote host (${detectedHost}) differs from .vibeops.json (${gitCfg.host}). Using ${detectedHost} for MR/PR.`,
@@ -174,7 +174,7 @@ export async function finishTaskWithPullRequest(
   const cliOk = await probeMergeRequestCli(gitCfg.host);
   if (!cliOk) {
     log.warn(formatHostCliMissingMessage(gitCfg.host, `create the ${label}`));
-    for (const line of formatHostCliHint(gitCfg.host)) {
+    for (const line of formatHostCliHint(gitCfg.host, gitCfg.gitlabUrl)) {
       log.info(dim(`  ${line}`));
     }
     log.info(

@@ -28,8 +28,8 @@ export async function resolveGitHostForCwd(cwd: string): Promise<GitHost | null>
   try {
     const gitCfg = await requireGitConfig(cwd);
     const remoteUrl = await gitRemoteUrl(cwd, gitCfg.remote);
-    if (remoteUrl !== null && detectGitHost(remoteUrl) !== null) {
-      return detectGitHost(remoteUrl)!;
+    if (remoteUrl !== null && detectGitHost(remoteUrl, gitCfg.gitlabUrl) !== null) {
+      return detectGitHost(remoteUrl, gitCfg.gitlabUrl)!;
     }
     return gitCfg.host;
   } catch (e) {

@@ -68,15 +68,40 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Install gitleaks (pinned release, checksum verified)
+        env:
+          # This job's read-only token. Authenticated REST calls are not held to the 60 requests/hour per IP of
+          # unauthenticated ones (GitHub docs "Rate limits for the REST API"). Reading a public repository's
+          # release needs nothing beyond `contents: read` above.
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          checksums="gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          api="https://api.github.com/repos/gitleaks/gitleaks/releases"
           workdir="$(mktemp -d)"
           cd "$workdir"
-          curl -sSfLO "${base}/${tarball}"
-          curl -sSfLO "${base}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
-          grep -E "^[0-9a-f]{64}  ${tarball}\$" "gitleaks_${GITLEAKS_VERSION}_checksums.txt" > release.sha256
+          # Download through the REST API release-asset endpoint, not github.com/<repo>/releases/download/: on
+          # 2026-11-08 the web path answered HTTP 504 for every release for over an hour while the API path
+          # answered. GitHub docs "REST API endpoints for release assets" > "Get a release asset": with
+          # `Accept: application/octet-stream` it redirects (302) to the file; curl -L follows it and does not
+          # send the Authorization header to the other host.
+          #
+          # Retries, curl(1) --retry: on a timeout or HTTP 408, 429, 500, 502, 503, 504, waiting 1 s and doubling
+          # the wait each time (1+2+4+8+16 = 31 s for 5 retries); --retry-connrefused adds a refused connection;
+          # --retry-max-time stops starting retries after 120 s, a small, bounded part of the job's timeout. Not
+          # --retry-all-errors: curl(1) advises against it by default, and it would also retry a 404 (a wrong
+          # version), which must fail at once. No jitter: curl has no option for it, and jitter spreads many
+          # clients retrying against one server at once; this job makes three requests, so there is no herd to
+          # break up. The checksums below verify whatever was downloaded.
+          curl_api=(curl -sSfL --retry 5 --retry-connrefused --retry-max-time 120
+            -H "Authorization: Bearer ${GH_TOKEN}" -H "X-GitHub-Api-Version: 2022-11-28")
+          "${curl_api[@]}" -H "Accept: application/vnd.github+json" -o release.json "${api}/tags/v${GITLEAKS_VERSION}"
+          for name in "$tarball" "$checksums"; do
+            id="$(jq -er --arg n "$name" '.assets[] | select(.name == $n) | .id' release.json)" \
+              || { echo "::error::gitleaks release v${GITLEAKS_VERSION} has no asset ${name}"; exit 1; }
+            "${curl_api[@]}" -H "Accept: application/octet-stream" -o "$name" "${api}/assets/${id}"
+          done
+          grep -E "^[0-9a-f]{64}  ${tarball}\$" "$checksums" > release.sha256
           echo "${GITLEAKS_SHA256}  ${tarball}" > pinned.sha256
           cmp release.sha256 pinned.sha256
           sha256sum -c pinned.sha256

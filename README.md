@@ -7,7 +7,7 @@
 
 VibeOps bootstraps an **agent-friendly repo**, starts numbered **TASK** files on Git branches, and runs a clear GitFlow lifecycle. You plan and implement in your chosen agent; the CLI handles files, Git, and short LLM assists.
 
-**Current release:** [`@goodtek/vibeops@2.5.1`](https://www.npmjs.com/package/@goodtek/vibeops) — interactive init remote (GitHub/GitLab), state-aware `task ship` only (no `task reship`), `status` Now/Next card, clearer `task add` integration sync errors.
+The npm badge above shows the latest published version; see [CHANGELOG.md](CHANGELOG.md) for what each release contains.
 
 ## Commands
 
@@ -29,9 +29,8 @@ VibeOps bootstraps an **agent-friendly repo**, starts numbered **TASK** files on
 Node.js 20+.
 
 ```bash
-npm install -g @goodtek/vibeops@2.5.1
-# or latest: npm install -g @goodtek/vibeops
-vibeops --version   # expect 2.5.1
+npm install -g @goodtek/vibeops
+vibeops --version   # expect the version on the npm badge above
 ```
 
 If `vibeops --version` stays on an old release after install, check for a **shell alias** or **Volta** shim shadowing npm:
@@ -39,7 +38,7 @@ If `vibeops --version` stays on an old release after install, check for a **shel
 ```bash
 type -a vibeops
 # alias → unalias vibeops (and remove from ~/.zshrc)
-# ~/.volta/bin/vibeops → volta install @goodtek/vibeops@2.5.1
+# ~/.volta/bin/vibeops → volta install @goodtek/vibeops
 ```
 
 **Upgrading from before 2.5:** `task reship` was removed. Use `vibeops task ship` (re-run while the PR is open; after merge use confirm or `--new-cycle`).
@@ -64,6 +63,18 @@ vibeops init --clients claude,codex,cursor --git --initial-commit --git-policy g
 # Re-init templates on an existing project
 vibeops init --clients cursor --yes
 ```
+
+### GitLab (GitLab.com or self-managed)
+
+GitLab means **GitLab.com** (`https://gitlab.com`) unless you set another base URL. A self-managed instance may use a port and a sub-path (`https://gitlab.example.com`, `https://gitlab.example.com:8443`, `https://example.invalid/gitlab`); `http://` is accepted, a trailing slash is dropped, anything else (no scheme, credentials, query) is refused with an error.
+
+- **Interactive:** choose GitLab, then answer **GitLab URL** (pre-filled with `https://gitlab.com`, or the URL already in `.vibeops.json`).
+- **Flag:** `vibeops init --git-host gitlab --gitlab-url https://gitlab.example.com` (skips the prompt; `--gitlab-url` alone implies `--git-host gitlab`).
+- **Config:** `.vibeops.json` → `"git": { "host": "gitlab", "gitlabUrl": "https://gitlab.example.com", … }`. Absent = GitLab.com (the default is not written). Re-init keeps the stored URL.
+
+Log in to that instance first: `glab auth login --hostname gitlab.example.com` (GitLab.com: `glab auth login`). With a port, keep `--hostname` port-less and put the port in the API host: `glab auth login --hostname gitlab.example.com --api-host gitlab.example.com:8443` (an `http://` URL adds `--api-protocol http`); glab stores the instance under the hostname, and VibeOps calls every glab command with that hostname. init prints this command when glab is not logged in. **Create** runs `glab repo create https://gitlab.example.com/<group>/<project>` (glab's documented full-URL form) and sets the integration branch as default via `glab api --hostname <hostname>`. **Connect** accepts `group/project` (also nested `group/sub/project`, turned into `https://gitlab.example.com/group/sub/project.git`) or a full HTTPS / SSH URL (`git@gitlab.example.com:group/project.git`, `ssh://git@gitlab.example.com:2222/group/project.git`). A remote on the configured host is recognized as GitLab even when its host name does not contain "gitlab"; an existing `origin` always wins.
+
+Limitations: a **sub-path** instance (`https://example.invalid/gitlab`) supports **connect and detection only** — glab calls `<host>/api/v4` and cannot reach a sub-path, so init refuses **Create** there (create the project in the web UI, then connect); `merge.updateBranch` (auto update-branch) is GitHub-only; a private CA must be trusted at the OS / git / glab level (VibeOps has no TLS setting); not tested against a live self-managed instance by the maintainers — please report problems.
 
 | Pack | Installed |
 |------|-----------|
@@ -140,7 +151,7 @@ vibeops llm use auto   # auto | codex-oauth | cursor-agent | openai
 
 ## Flags (common)
 
-- **`init`**: `--clients`, `--yes`, `--dry-run`, `--force`, `--git`, `--initial-commit`, `--git-policy gitflow|trunk`, `--integration-branch`, `--production-branch`, `--git-host github|gitlab`, `--allow-no-remote`, `--cwd`
+- **`init`**: `--clients`, `--yes`, `--dry-run`, `--force`, `--git`, `--initial-commit`, `--git-policy gitflow|trunk`, `--integration-branch`, `--production-branch`, `--git-host github|gitlab`, `--gitlab-url <url>` (default `https://gitlab.com`, see [GitLab](#gitlab-gitlabcom-or-self-managed)), `--allow-no-remote`, `--cwd`
   When `init` creates the repository on GitHub / GitLab (interactive), it pushes `main` and the integration branch and makes the integration branch (`develop` with the GitFlow preset) the repository's default branch; an existing repository's default branch is not changed.
 - **`task add`**: `--dry-run`, `--non-interactive --idea "…"`
 - **`task del`**: `--dry-run`, `--force`, `--no-remote-delete`, `--no-close-mr`
@@ -153,7 +164,7 @@ vibeops llm use auto   # auto | codex-oauth | cursor-agent | openai
 
 ## Git
 
-- **Init** records branch policy in `.vibeops.json` (`integrationBranch`, `productionBranch`, `host`). Interactive remote setup: ask GitHub/GitLab, create or connect; soft-gate when `gh`/`glab` is missing.
+- **Init** records branch policy in `.vibeops.json` (`integrationBranch`, `productionBranch`, `host`, and `gitlabUrl` for a self-managed GitLab). Interactive remote setup: ask GitHub/GitLab, create or connect; soft-gate when `gh`/`glab` is missing.
 - **`task add`**: `task/<NNN-slug>` from **`<remote>/<integration>`** (e.g. `origin/develop`), after `git fetch`. See [Worktrees](#worktrees) and [TASK ids](#task-ids).
 - **`task ship`** (state-aware): **no PR** → commit + ship metadata (Status **Shipped**) → push → open MR/PR; **open PR** → commit + push the same branch, CI re-runs, no new PR; **merged PR** → new PR cycle (carries uncommitted work onto the task branch, integrates `develop`, opens a **new** PR). Use `--new-cycle` in non-interactive mode. Commit messages are TASK-id-scoped (`feat(task-001): …`). Refuses when HEAD is not the task branch.
 - **`task merge`**: merge MR/PR into integration (TASK md unchanged) — **only when every check is green** (see [Merge gate](#merge-gate)).
