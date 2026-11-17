@@ -83,8 +83,8 @@ export async function taskReleaseCommand(
 
   const remoteUrl = await gitRemoteUrl(cwd, remote);
   const host =
-    remoteUrl !== null && detectGitHost(remoteUrl) !== null
-      ? detectGitHost(remoteUrl)!
+    remoteUrl !== null && detectGitHost(remoteUrl, gitCfg.gitlabUrl) !== null
+      ? detectGitHost(remoteUrl, gitCfg.gitlabUrl)!
       : gitCfg.host;
   const label = mergeRequestLabel(host);
   const title = `Release: ${integrationBranch} → ${productionBranch}`;
@@ -125,7 +125,7 @@ export async function taskReleaseCommand(
   const cliOk = await probeMergeRequestCli(host);
   if (!cliOk) {
     log.error(formatHostCliMissingMessage(host, `create the release ${label}`));
-    for (const line of formatHostCliHint(host)) {
+    for (const line of formatHostCliHint(host, gitCfg.gitlabUrl)) {
       log.info(dim(`  ${line}`));
     }
     process.exitCode = 1;

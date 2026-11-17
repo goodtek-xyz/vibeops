@@ -14,6 +14,17 @@ import {
 } from "../types/config.js";
 import { isVibeopsClientId } from "./init-clients.js";
 import { CommitTrailersConfigError, parseCommitTrailers } from "./commit-trailers.js";
+import { DEFAULT_GITLAB_URL, GitlabUrlError, parseGitlabBaseUrl } from "./gitlab-url.js";
+
+/** `git.gitlabUrl`: absent → undefined (GitLab.com); invalid → `GitlabUrlError` (fail closed). */
+function parseGitlabUrlField(raw: unknown): string | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw !== "string") {
+    throw new GitlabUrlError(`${VIBEOPS_CONFIG_FILE} git.gitlabUrl must be a string URL.`);
+  }
+  const { url } = parseGitlabBaseUrl(raw);
+  return url === DEFAULT_GITLAB_URL ? undefined : url;
+}
 
 function parseClientsBlock(raw: unknown): VibeopsClientId[] | undefined {
   if (!Array.isArray(raw)) return undefined;
@@ -53,12 +64,14 @@ function parseGitBlock(raw: unknown): VibeopsGitConfig | undefined {
       : undefined;
   if (!host || !integrationBranch || !productionBranch) return undefined;
   const commitTrailers = parseCommitTrailers(o.commitTrailers);
+  const gitlabUrl = parseGitlabUrlField(o.gitlabUrl);
   return {
     remote,
     host,
     integrationBranch,
     productionBranch,
     ...(commitTrailers ? { commitTrailers } : {}),
+    ...(gitlabUrl ? { gitlabUrl } : {}),
   };
 }
 
@@ -104,7 +117,7 @@ export async function readConfig(root: string): Promise<VibeopsConfig | null> {
     return null;
   } catch (e) {
     // An invalid commitTrailers entry is a visible error, not "no config".
-    if (e instanceof CommitTrailersConfigError) throw e;
+    if (e instanceof CommitTrailersConfigError || e instanceof GitlabUrlError) throw e;
     return null;
   }
 }
@@ -126,6 +139,9 @@ export function buildConfig(
       ...git,
       ...(git.commitTrailers === undefined && existing?.git?.commitTrailers
         ? { commitTrailers: existing.git.commitTrailers }
+        : {}),
+      ...(!("gitlabUrl" in git) && existing?.git?.gitlabUrl
+        ? { gitlabUrl: existing.git.gitlabUrl }
         : {}),
     },
     llm: existing?.llm ?? { provider: "auto" },
