@@ -52,6 +52,10 @@ program
   .option("--integration-branch <name>", "Integration branch (with --production-branch)")
   .option("--production-branch <name>", "Production branch")
   .option("--git-host <host>", "github or gitlab (default: detect from remote)")
+  .option(
+    "--gitlab-url <url>",
+    "GitLab base URL for create/connect (default https://gitlab.com; self-managed e.g. https://gitlab.example.com)",
+  )
   .option("--allow-no-remote", "Smoke/CI: skip origin requirement")
   .action(async (opts) => {
     await initCommand({
@@ -69,6 +73,7 @@ program
       integrationBranch: opts.integrationBranch as string | undefined,
       productionBranch: opts.productionBranch as string | undefined,
       gitHost: opts.gitHost as string | undefined,
+      gitlabUrl: opts.gitlabUrl as string | undefined,
     });
   });
 

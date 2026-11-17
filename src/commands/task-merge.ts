@@ -117,8 +117,8 @@ export async function taskMergeCommand(
   const remoteUrl = await gitRemoteUrl(cwd, gitCfg.remote);
   const host =
     resolvedMr?.host ??
-    (remoteUrl !== null && detectGitHost(remoteUrl) !== null
-      ? detectGitHost(remoteUrl)!
+    (remoteUrl !== null && detectGitHost(remoteUrl, gitCfg.gitlabUrl) !== null
+      ? detectGitHost(remoteUrl, gitCfg.gitlabUrl)!
       : gitCfg.host);
 
   const method = resolveMergeMethod(options);
@@ -167,7 +167,7 @@ export async function taskMergeCommand(
     const cliOk = await probeMergeRequestCli(host);
     if (!cliOk) {
       log.error(formatHostCliMissingMessage(host, `merge the ${label}`));
-      for (const line of formatHostCliHint(host)) {
+      for (const line of formatHostCliHint(host, gitCfg.gitlabUrl)) {
         log.info(dim(`  ${line}`));
       }
       log.info(dim("Or merge in the host UI, then task sync."));

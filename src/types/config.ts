@@ -21,6 +21,11 @@ export interface VibeopsGitConfig {
    * (`git commit --trailer`). Validated by `src/lib/commit-trailers.ts`.
    */
   commitTrailers?: string[];
+  /**
+   * GitLab base URL (`https://host[:port][/sub-path]`). Absent = `https://gitlab.com`.
+   * Validated and normalized by `src/lib/gitlab-url.ts` (D-017).
+   */
+  gitlabUrl?: string;
 }
 
 export interface VibeopsLlmConfig {
