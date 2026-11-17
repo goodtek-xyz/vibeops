@@ -5,6 +5,7 @@
 ## Stage
 
 - **Package:** `@goodtek/vibeops` **3.4.1** (merge gate: latest run per check).
+- **Unreleased:** README no longer hardcodes a "current release" version (npm badge + CHANGELOG instead); release checklist notes README needs no bump (TASK-062).
 - **CLI lifecycle:** `init` · `task add` · `task del` · **`task ship` (state-aware)** · `task merge` · `task sync` · `pull` · `task release` · **`status` (Now/Next)** · `llm`.
 - **Breaking (2.5.0):** `task reship` removed — use `task ship` / `--new-cycle`.
 - **2.5.1:** `task add` preflight + sync diagnosis + incomplete resume.

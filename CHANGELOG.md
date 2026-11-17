@@ -4,6 +4,10 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+### Docs
+
+- **README no longer goes stale on release.** The "Current release" line (still `2.5.1` while npm was at 3.4.1) and the pinned `@2.5.1` install / Volta examples are replaced by version-free text: the npm badge shows the latest version and `CHANGELOG.md` lists what each release contains. The release checklist in `09-deployment.md` notes that README needs no version bump (TASK-062).
+
 ## 3.4.1 - 2026-11-08
 
 ### Fixed
