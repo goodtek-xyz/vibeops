@@ -87,3 +87,8 @@ Owner decisions pending:
 - One TASK at a time in consumer repos.
 - Docs before ship: Result, Test Result, `05-current-state.md`, daily log.
 - `task sync` does not edit TASK markdown.
+
+## TASK-068 · Security: Dependabot alert 7 (minimatch GHSA-g3hv-75wg-m249)
+
+- Dev-only: `eslint` 10.15.0, `typescript-eslint` 8.73.0 → transitive minimatch 10.2.6 → 11.0.9 (no overrides). Security update, so the 14-day cooldown does not apply. npm package unaffected.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test` (192 pass), `pnpm smoke` OK.

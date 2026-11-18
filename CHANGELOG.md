@@ -4,6 +4,10 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+### Security
+
+- **Dev dependencies: minimatch DoS advisory (GHSA-g3hv-75wg-m249) resolved.** `eslint` 10.14.0 → 10.15.0 and `typescript-eslint` 8.72.1 → 8.73.0 move the transitive `minimatch` from 10.2.6 to 11.0.9. Development tooling only; the published npm package does not depend on minimatch and is unaffected (TASK-068).
+
 ## 3.5.1 - 2026-11-18
 
 ### Fixed
