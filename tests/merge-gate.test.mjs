@@ -757,6 +757,42 @@ test("gitlab: missing sha fails closed", async () => {
   assert.deepEqual(mergeCalls(), []);
 });
 
+test("gitlab: only detailed_merge_status (merge_status absent) passes and merges", async () => {
+  const mr = glMr("success");
+  delete mr.merge_status;
+  queueViews([mr]);
+  await mergeGitLab();
+  assert.deepEqual(mergeCalls(), [GL_MERGE]);
+});
+
+test("gitlab: only detailed_merge_status still gates readiness (not mergeable refuses)", async () => {
+  const mr = glMr("success", { detailed_merge_status: "not_approved" });
+  delete mr.merge_status;
+  queueViews([mr]);
+  await assert.rejects(mergeGitLab(), /not_approved/);
+  assert.deepEqual(mergeCalls(), []);
+});
+
+test("gitlab: only merge_status (detailed_merge_status absent) passes and merges", async () => {
+  const mr = glMr("success");
+  delete mr.detailed_merge_status;
+  queueViews([mr]);
+  await mergeGitLab();
+  assert.deepEqual(mergeCalls(), [GL_MERGE]);
+});
+
+test("gitlab: neither merge_status nor detailed_merge_status fails closed", async () => {
+  const mr = glMr("success");
+  delete mr.merge_status;
+  delete mr.detailed_merge_status;
+  queueViews([mr]);
+  await assert.rejects(
+    mergeGitLab(),
+    /`merge_status` and `detailed_merge_status` are both missing/,
+  );
+  assert.deepEqual(mergeCalls(), []);
+});
+
 test("gitlab: no pipeline refuses by default, merges with allowNoChecks", async () => {
   queueViews([glMr(null)]);
   await assert.rejects(mergeGitLab(), /reports no checks/);
