@@ -4,6 +4,10 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- **`task merge` on GitLab refused an MR without the deprecated `merge_status`.** The strict MR shape check required both `merge_status` and `detailed_merge_status`; GitLab 15.6 deprecated `merge_status` in favor of `detailed_merge_status` and some instances return only the latter. One of the two is now enough (readiness already prefers `detailed_merge_status`); both missing still fails closed (TASK-066).
+
 ## 3.5.0 - 2026-11-18
 
 ### Added

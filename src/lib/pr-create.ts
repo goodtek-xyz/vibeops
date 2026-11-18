@@ -364,12 +364,21 @@ export async function readMergeRequestDetails(
     if (options.strict) {
       const problems = shapeProblems(parsed as Record<string, unknown>, {
         state: "nonEmptyString",
-        merge_status: "present",
-        detailed_merge_status: "present",
         // `null` = no pipeline; the key itself must be there.
         head_pipeline: "present",
         sha: "nonEmptyString",
       });
+      // GitLab 15.6 deprecated `merge_status` for `detailed_merge_status`, and some
+      // instances return only the latter; one of the two is enough (readiness
+      // prefers the detailed one).
+      // https://docs.gitlab.com/api/merge_requests/#merge-status
+      const raw = parsed as Record<string, unknown>;
+      const hasMergeStatus = ["merge_status", "detailed_merge_status"].some(
+        (field) => field in raw && raw[field] !== undefined,
+      );
+      if (!hasMergeStatus) {
+        problems.push("`merge_status` and `detailed_merge_status` are both missing");
+      }
       const pipeline = parsed.head_pipeline;
       if (
         pipeline !== null &&

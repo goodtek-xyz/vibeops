@@ -7,6 +7,7 @@
 - **Package:** `@goodtek/vibeops` **3.5.0** (self-managed GitLab for `init`, version-free README).
 - **3.5.0:** `init` supports self-managed GitLab — base URL default `https://gitlab.com`, set by prompt / `--gitlab-url` / `git.gitlabUrl` (D-017, TASK-063).
 - **3.5.0:** README no longer hardcodes a "current release" version (npm badge + CHANGELOG instead); release checklist notes README needs no bump (TASK-062).
+- **Unreleased:** GitLab `task merge` strict MR check accepts `detailed_merge_status` without the deprecated `merge_status` (one of the two required; both missing fails closed) (TASK-066).
 - **CLI lifecycle:** `init` · `task add` · `task del` · **`task ship` (state-aware)** · `task merge` · `task sync` · `pull` · `task release` · **`status` (Now/Next)** · `llm`.
 - **Breaking (2.5.0):** `task reship` removed — use `task ship` / `--new-cycle`.
 - **2.5.1:** `task add` preflight + sync diagnosis + incomplete resume.
