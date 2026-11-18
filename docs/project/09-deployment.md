@@ -27,7 +27,7 @@ Package: `@goodtek/vibeops` (public). Version is `package.json` `version`.
 Long-lived branches: `develop` (integration, default branch) and `main` (production). `main` only receives releases (`vibeops task release`); `.vibeops.json` `git` block: `integrationBranch: develop`, `productionBranch: main`.
 
 1. TASK PRs (`task/*` → `develop`) merge with `vibeops task merge` after their CI is green and the head contains the current `develop`.
-2. Release prep on `develop` (a TASK such as "Release X.Y.Z"): bump `package.json` `version`, move the CHANGELOG `Unreleased` entries under `## X.Y.Z - YYYY-MM-DD`, update `05-current-state.md`. Patch for fixes, minor for features, major for breaking changes.
+2. Release prep on `develop` (a TASK such as "Release X.Y.Z"): bump `package.json` `version`, move the CHANGELOG `Unreleased` entries under `## X.Y.Z - YYYY-MM-DD`, update `05-current-state.md`. `README.md` carries no version number (the npm badge and `CHANGELOG.md` show it), so it needs no bump. Patch for fixes, minor for features, major for breaking changes.
 3. `vibeops task release --tag`: opens (or reuses) the `develop → main` PR, merges it with a merge commit once its own CI is green (`merge.releaseRequiredChecks`), then tags that merge commit `vX.Y.Z` (the `package.json` version there) and pushes the tag. It refuses to move an existing tag.
 4. The tag push starts `publish.yml`, which publishes `X.Y.Z` (below). No token, OTP or manual step.
 5. Check the registry: `npm view @goodtek/vibeops dist-tags --prefer-online`.

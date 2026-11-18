@@ -143,8 +143,8 @@ async function taskSyncUnlocked(
 
   const remoteUrl = await gitRemoteUrl(cwd, remote);
   const host =
-    remoteUrl !== null && detectGitHost(remoteUrl) !== null
-      ? detectGitHost(remoteUrl)!
+    remoteUrl !== null && detectGitHost(remoteUrl, gitCfg.gitlabUrl) !== null
+      ? detectGitHost(remoteUrl, gitCfg.gitlabUrl)!
       : gitCfg.host;
 
   // Verify the merge BEFORE moving HEAD or touching any branch.

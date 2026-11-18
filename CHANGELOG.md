@@ -4,6 +4,20 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 3.5.0 - 2026-11-18
+
+### Added
+
+- **Self-managed GitLab for `init`.** The GitLab base URL defaults to `https://gitlab.com` and can be changed: interactive "GitLab URL" prompt, `init --gitlab-url <url>`, or `.vibeops.json` `git.gitlabUrl` (port and sub-path allowed; validated and normalized, invalid values exit 1). Create uses `glab repo create <base>/<path>`, connect accepts `group/sub/project` and custom-host HTTPS / SSH URLs, a remote on the configured host is detected as GitLab, and `glab api` / `auth` calls pass `--hostname` for that instance (port-less; a port is set once with `glab auth login --api-host`). A sub-path instance supports connect and detection only (create is refused: glab cannot reach a sub-path API). GitLab.com users run the same glab commands as before, except the create fix below (D-017, TASK-063).
+
+### Fixed
+
+- **`init` GitLab create used an unknown glab flag** (`--remote=origin`); it now passes `--remoteName <remote>` as documented for `glab repo create` (TASK-063).
+
+### Docs
+
+- **README no longer goes stale on release.** The "Current release" line (still `2.5.1` while npm was at 3.4.1) and the pinned `@2.5.1` install / Volta examples are replaced by version-free text: the npm badge shows the latest version and `CHANGELOG.md` lists what each release contains. The release checklist in `09-deployment.md` notes that README needs no version bump (TASK-062).
+
 ## 3.4.1 - 2026-11-08
 
 ### Fixed
