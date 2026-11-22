@@ -14,6 +14,7 @@ The human opened a TASK file (e.g. `docs/tasks/TASK-015-….md`).
 2. Ask only what is missing to make **Scope**, **Acceptance Criteria**, and **Test Plan** verifiable.
 3. Edit the TASK file in place — do not create a second TASK id.
 4. Keep **Out of Scope** explicit.
-5. Do not write application code in this step unless the human asks.
+5. Plan tests for CI and developer machines only; a deploy check uses CI results, artifact hash, restart, and health checks, never tests on the host (AGENTS.md "Testing and host safety").
+6. Do not write application code in this step unless the human asks.
 
 When planning is enough, tell the human to implement per the TASK (Agent mode / Codex / Claude Code as they prefer).

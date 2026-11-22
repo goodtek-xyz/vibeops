@@ -8,6 +8,7 @@
 - **3.5.0:** `init` supports self-managed GitLab — base URL default `https://gitlab.com`, set by prompt / `--gitlab-url` / `git.gitlabUrl` (D-017, TASK-063).
 - **3.5.0:** README no longer hardcodes a "current release" version (npm badge + CHANGELOG instead); release checklist notes README needs no bump (TASK-062).
 - **3.5.1:** GitLab `task merge` strict MR check accepts `detailed_merge_status` without the deprecated `merge_status` (one of the two required; both missing fails closed) (TASK-066).
+- **Unreleased:** `init` writes an AGENTS.md "Testing and host safety" rule (tests in CI/locally only, host-control behind a test-runner guard, no test markers in prod/staging); TASK template, `task add` stub and skills reference it (TASK-069).
 - **CLI lifecycle:** `init` · `task add` · `task del` · **`task ship` (state-aware)** · `task merge` · `task sync` · `pull` · `task release` · **`status` (Now/Next)** · `llm`.
 - **Breaking (2.5.0):** `task reship` removed — use `task ship` / `--new-cycle`.
 - **2.5.1:** `task add` preflight + sync diagnosis + incomplete resume.
@@ -92,3 +93,7 @@ Owner decisions pending:
 
 - Dev-only: `eslint` 10.15.0, `typescript-eslint` 8.73.0 → transitive minimatch 10.2.6 → 11.0.9 (no overrides). Security update, so the 14-day cooldown does not apply. npm package unaffected.
 - `pnpm lint`, `pnpm typecheck`, `pnpm test` (192 pass), `pnpm smoke` OK.
+
+## TASK-069 · Templates: tests in CI and locally only; host-control faked in tests
+
+- `templates/core/AGENTS.md` "Testing and host safety" section; references in TASK template, `task add` scaffold, `plan-task` / `implement-task` skills. Smoke asserts `init` installs it.

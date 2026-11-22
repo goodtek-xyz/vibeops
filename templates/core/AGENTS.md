@@ -42,3 +42,9 @@ vibeops llm connect   # optional — task add / ship
 - Fill **Result** and **Test Result** before `vibeops task ship` (warned, not blocked, when updating an open PR).
 - `ship` is state-aware: re-run it to update an open PR; after merge it needs `--new-cycle` (or a confirm) to start a new PR cycle.
 - Agents do not run `task merge` or `task sync` unless the human asks.
+
+## Testing and host safety
+
+- Run test suites only in CI and on developer machines, never on production or staging hosts. Verify a deploy with CI results, the artifact hash, a restart, and health checks, not by running tests on the host.
+- Code that controls the host (service managers such as `systemctl` / `launchctl`, process kill, cluster CLIs) goes through one guard that refuses loudly when it runs under a test runner. Tests use fakes and test-only names, never the real host-control call.
+- Do not set test-marker environment variables in production or staging environments.

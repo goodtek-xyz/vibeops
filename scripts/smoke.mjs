@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -12,6 +12,7 @@ if (!existsSync(cli)) {
 }
 
 const tmpRoot = mkdtempSync(join(tmpdir(), "vibeops-smoke-"));
+const claudeRoot = mkdtempSync(join(tmpdir(), "vibeops-smoke-claude-"));
 try {
   const cases = [
     ["--help"],
@@ -25,6 +26,19 @@ try {
       "smoke",
       "--clients",
       "cursor",
+      "--allow-no-remote",
+      "--git-policy",
+      "gitflow",
+    ],
+    [
+      "init",
+      "--cwd",
+      claudeRoot,
+      "--git",
+      "--name",
+      "smoke-claude",
+      "--clients",
+      "claude",
       "--allow-no-remote",
       "--git-policy",
       "gitflow",
@@ -71,7 +85,22 @@ try {
     }
   }
 
+  // init installs the testing / host-safety rule for consumer agents (TASK-069).
+  const agentsMd = readFileSync(join(tmpRoot, "AGENTS.md"), "utf8");
+  if (!agentsMd.includes("## Testing and host safety")) {
+    console.error("[smoke] failed: AGENTS.md is missing the \"Testing and host safety\" section");
+    process.exit(1);
+  }
+
+  // Claude Code reads CLAUDE.md, not AGENTS.md: the generated CLAUDE.md must import it (TASK-069).
+  const claudeMd = readFileSync(join(claudeRoot, "CLAUDE.md"), "utf8");
+  if (!claudeMd.split("\n").includes("@AGENTS.md")) {
+    console.error("[smoke] failed: CLAUDE.md does not import @AGENTS.md");
+    process.exit(1);
+  }
+
   process.stdout.write("[smoke] OK\n");
 } finally {
   rmSync(tmpRoot, { recursive: true, force: true });
+  rmSync(claudeRoot, { recursive: true, force: true });
 }
