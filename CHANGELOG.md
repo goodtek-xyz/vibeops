@@ -4,6 +4,8 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 3.6.0 - 2026-11-22
+
 ### Changed
 
 - **Consumer agents keep tests off servers.** `init` now writes a "Testing and host safety" section into `AGENTS.md`: run tests only in CI and on developer machines, verify deploys with CI results, artifact hash, restart and health checks; route host-control code (service managers, process kill, cluster CLIs) through one guard that refuses under a test runner and fake it in tests; never set test-marker env vars in production or staging. The TASK template, the `task add` Test Plan stub, and the `plan-task` / `implement-task` skills point to it. Background: a test that ran a real service-stop command on a production host stopped a running service (TASK-069).
