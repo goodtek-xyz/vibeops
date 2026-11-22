@@ -4,6 +4,11 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+### Changed
+
+- **Consumer agents keep tests off servers.** `init` now writes a "Testing and host safety" section into `AGENTS.md`: run tests only in CI and on developer machines, verify deploys with CI results, artifact hash, restart and health checks; route host-control code (service managers, process kill, cluster CLIs) through one guard that refuses under a test runner and fake it in tests; never set test-marker env vars in production or staging. The TASK template, the `task add` Test Plan stub, and the `plan-task` / `implement-task` skills point to it. Background: a test that ran a real service-stop command on a production host stopped a running service (TASK-069).
+- **Claude Code and Cursor see the rule too.** The generated `CLAUDE.md` imports `@AGENTS.md` (Claude Code reads `CLAUDE.md`, not `AGENTS.md`) and points to the section; the Cursor `01-task-source-of-truth.mdc` rule points to it. Existing projects get all of this by re-running `vibeops init`; re-init overwrites `AGENTS.md` and client rule files entirely, so re-apply any local edits afterwards (TASK-069).
+
 ### Security
 
 - **Dev dependencies: minimatch DoS advisory (GHSA-g3hv-75wg-m249) resolved.** `eslint` 10.14.0 → 10.15.0 and `typescript-eslint` 8.72.1 → 8.73.0 move the transitive `minimatch` from 10.2.6 to 11.0.9. Development tooling only; the published npm package does not depend on minimatch and is unaffected (TASK-068).

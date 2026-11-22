@@ -60,6 +60,8 @@ ${draft.idea.trim()}
 
 ## Test Plan
 
+<!-- Tests run in CI and locally only, never on production/staging hosts; host-control code is faked (AGENTS.md "Testing and host safety"). -->
+
 - Project-specific checks for this change
 
 ## Git Context
