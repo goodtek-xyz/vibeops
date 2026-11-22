@@ -10,3 +10,4 @@ alwaysApply: true
 - Work only inside **Scope** and **Acceptance Criteria**.
 - Do not start another TASK id unless the human asks.
 - If chat and TASK docs disagree, **fix the docs first**, then implement.
+- Follow `AGENTS.md` "Testing and host safety": tests run in CI and locally only; host-control code is faked in tests.
