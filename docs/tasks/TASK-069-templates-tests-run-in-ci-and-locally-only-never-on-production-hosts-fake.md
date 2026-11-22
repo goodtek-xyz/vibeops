@@ -47,6 +47,7 @@ A test that invoked a real service-stop command on a production host stopped a r
 - `templates/clients/claude/CLAUDE.md`: `@AGENTS.md` import (Claude Code memory import syntax) plus a pointer line; `templates/clients/cursor/.cursor/rules/01-task-source-of-truth.mdc`: pointer line.
 - `scripts/smoke.mjs` fails if `init` does not write the section, and runs a second `init --clients claude` that must produce a `CLAUDE.md` with an `@AGENTS.md` line.
 - Existing consumers: re-run `vibeops init` (overwrites `AGENTS.md` and client rules; re-apply local edits).
+  - Correction (TASK-070): do not re-run `vibeops init` for this; it overwrites `AGENTS.md` and client rules entirely and drops project-specific sections. Copy the section from `templates/core/AGENTS.md` by hand and, for Claude Code, add `@AGENTS.md` to `CLAUDE.md`.
 
 ## Test Result
 
