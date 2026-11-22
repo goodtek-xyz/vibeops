@@ -97,3 +97,7 @@ Owner decisions pending:
 ## TASK-069 · Templates: tests in CI and locally only; host-control faked in tests
 
 - `templates/core/AGENTS.md` "Testing and host safety" section; references in TASK template, `task add` scaffold, `plan-task` / `implement-task` skills. Smoke asserts `init` installs it.
+
+## TASK-070 · Docs: existing projects copy the Testing and host safety section by hand
+
+- CHANGELOG and TASK-069 Result no longer advise re-running `vibeops init` (it overwrites `AGENTS.md` and client rules, dropping project-specific sections); copy the section by hand and add `@AGENTS.md` to `CLAUDE.md`. Docs only.
