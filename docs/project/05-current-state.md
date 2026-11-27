@@ -4,11 +4,12 @@
 
 ## Stage
 
-- **Package:** `@goodtek/vibeops` **3.6.0** (consumer `AGENTS.md` "Testing and host safety" rule; dev-dependency minimatch advisory resolved).
+- **Package:** `@goodtek/vibeops` **3.6.1** (`codex-oauth` streamed replies parse again; "LLM unavailable" warnings name the cause).
 - **3.5.0:** `init` supports self-managed GitLab — base URL default `https://gitlab.com`, set by prompt / `--gitlab-url` / `git.gitlabUrl` (D-017, TASK-063).
 - **3.5.0:** README no longer hardcodes a "current release" version (npm badge + CHANGELOG instead); release checklist notes README needs no bump (TASK-062).
 - **3.5.1:** GitLab `task merge` strict MR check accepts `detailed_merge_status` without the deprecated `merge_status` (one of the two required; both missing fails closed) (TASK-066).
 - **3.6.0:** `init` writes an AGENTS.md "Testing and host safety" rule (tests in CI/locally only, host-control behind a test-runner guard, no test markers in prod/staging); TASK template, `task add` stub and skills reference it (TASK-069).
+- **3.6.1:** `codex-oauth` reads streamed text once (deltas, or `response.completed` only when no delta came), so `task add` / `task ship` JSON replies parse again; "LLM unavailable" warnings name a one-line cause; Codex `model_not_found` hints `VIBEOPS_CODEX_MODEL` (TASK-072).
 - **CLI lifecycle:** `init` · `task add` · `task del` · **`task ship` (state-aware)** · `task merge` · `task sync` · `pull` · `task release` · **`status` (Now/Next)** · `llm`.
 - **Breaking (2.5.0):** `task reship` removed — use `task ship` / `--new-cycle`.
 - **2.5.1:** `task add` preflight + sync diagnosis + incomplete resume.
@@ -52,14 +53,14 @@
 
 ## Next
 
-- Consumers: `npm i -g @goodtek/vibeops@3.6.0` (or `volta install @goodtek/vibeops@3.6.0`). Repos without CI: `"merge": {"allowNoChecks": true}`.
+- Consumers: `npm i -g @goodtek/vibeops@3.6.1` (or `volta install @goodtek/vibeops@3.6.1`). Repos without CI: `"merge": {"allowNoChecks": true}`.
 - Maintainers: TASK PRs → `develop`; release = release-prep TASK on `develop` → `vibeops task release --tag` (develop → main after its CI, then tag `vX.Y.Z` on the merge commit) → `publish.yml` publishes via npm Trusted Publishing (no token; 09-deployment.md). Manual `pnpm publish:npm` is a fallback only.
 
 ## Handoff (2026-11-18)
 
 State at handoff — clean, ready to start the next feature from `develop`:
 
-- Released: `@goodtek/vibeops` **3.6.0** (via `task release --tag`) on npm (`latest`, SLSA provenance); each release is tagged `vX.Y.Z` on its release merge commit on `main`, published by `publish.yml` (Trusted Publishing, connection *Valid*). Releases go through `develop → main` (D-010; the first was 3.1.8).
+- Released: `@goodtek/vibeops` **3.6.1** (via `task release --tag`) on npm (`latest`, SLSA provenance); each release is tagged `vX.Y.Z` on its release merge commit on `main`, published by `publish.yml` (Trusted Publishing, connection *Valid*). Releases go through `develop → main` (D-010; the first was 3.1.8).
 - Branches: `develop` (default, integration) and `main` (releases only). No other branches and no worktrees.
 - Open PRs: none once #62 `actions/setup-node` 7.1.0, #63 `@inquirer/prompts` 8.7.5 and #65 npm-development group are merged (judged in TASK-065: minor / patch, CI green, `engines` unchanged). Dependabot minor / patch groups are merged after CI (#34 eslint, #35 @inquirer/prompts); the major PRs #36 `@types/node`, #37 `typescript`, #38 `commander` were judged and closed with reasons (TASK-056), with `ignore` rules in `.github/dependabot.yml` for the `@types/node` and `commander` majors.
 - TASKs: none In Progress (TASK-000 is the template). TASK-001…017 still carry the old status words `done` / `Review` from before the Shipped vocabulary.

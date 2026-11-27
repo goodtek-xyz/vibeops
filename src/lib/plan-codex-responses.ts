@@ -5,6 +5,7 @@
  * @see https://github.com/openclaw/openclaw/issues/67740 (payload constraints)
  */
 import { resolveCodexOAuthAccessToken } from "./plan-codex-auth.js";
+import { httpErrorMessage } from "./llm-error.js";
 import type { OpenAiChatMessage } from "./plan-llm-openai.js";
 
 const DEFAULT_BASE = "https://chatgpt.com/backend-api/codex";
@@ -71,8 +72,66 @@ function deltaTextFromEvent(obj: Record<string, unknown>): string {
   return "";
 }
 
+function completedOutputText(obj: Record<string, unknown>): string {
+  const resp = obj.response;
+  if (!resp || typeof resp !== "object") return "";
+  const output = (resp as { output?: unknown }).output;
+  if (!Array.isArray(output)) return "";
+  let text = "";
+  for (const item of output) {
+    if (!item || typeof item !== "object") continue;
+    const content = (item as { content?: unknown }).content;
+    if (!Array.isArray(content)) continue;
+    for (const c of content) {
+      if (!c || typeof c !== "object") continue;
+      const o = c as { type?: unknown; text?: unknown };
+      if (o.type === "output_text" && typeof o.text === "string") text += o.text;
+    }
+  }
+  return text;
+}
+
+/** Accumulates one SSE stream: non-empty deltas win; the completed/done output is used only when no delta arrived. */
+class CodexSseText {
+  private deltas = "";
+  private sawDelta = false;
+  private completed = "";
+
+  /** Handles every `data:` line of one SSE block (or the unterminated tail). */
+  handleBlock(block: string): void {
+    for (const line of block.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+      const data = trimmed.slice(5).trim();
+      if (data === "[DONE]") continue;
+      let j: Record<string, unknown>;
+      try {
+        j = JSON.parse(data) as Record<string, unknown>;
+      } catch {
+        continue; /* ignore malformed SSE JSON */
+      }
+      const typ = String(j.type ?? "");
+      if (typ === "response.output_text.delta" || typ.endsWith(".output_text.delta")) {
+        const t = deltaTextFromEvent(j);
+        if (t.length > 0) {
+          this.sawDelta = true;
+          this.deltas += t;
+        }
+      } else if (typ === "response.completed" || typ === "response.done") {
+        this.completed += completedOutputText(j);
+      }
+    }
+  }
+
+  text(): string {
+    return (this.sawDelta ? this.deltas : this.completed).trim();
+  }
+}
+
 /**
- * Parses SSE from Codex responses stream; accumulates assistant text deltas.
+ * Parses SSE from Codex responses stream. The stream sends the text twice — as
+ * `response.output_text.delta` events and again in `response.completed` — so the
+ * deltas are used when present and the completed output only as a fallback.
  */
 export async function readSseTextBody(response: Response): Promise<string> {
   const body = response.body;
@@ -82,72 +141,31 @@ export async function readSseTextBody(response: Response): Promise<string> {
   }
   const reader = body.getReader();
   const dec = new TextDecoder();
+  const acc = new CodexSseText();
   let pending = "";
-  let out = "";
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     pending += dec.decode(value, { stream: true });
     let sep: number;
     while ((sep = pending.indexOf("\n\n")) >= 0) {
-      const block = pending.slice(0, sep);
+      acc.handleBlock(pending.slice(0, sep));
       pending = pending.slice(sep + 2);
-      for (const line of block.split("\n")) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith("data:")) continue;
-        const data = trimmed.slice(5).trim();
-        if (data === "[DONE]") continue;
-        try {
-          const j = JSON.parse(data) as Record<string, unknown>;
-          const typ = String(j.type ?? "");
-          if (typ === "response.output_text.delta" || typ.endsWith(".output_text.delta")) {
-            out += deltaTextFromEvent(j);
-          }
-          if (typ === "response.completed" || typ === "response.done") {
-            const resp = j.response as Record<string, unknown> | undefined;
-            if (resp && typeof resp === "object") {
-              const output = resp.output;
-              if (Array.isArray(output)) {
-                for (const item of output) {
-                  if (!item || typeof item !== "object") continue;
-                  const content = (item as { content?: unknown }).content;
-                  if (!Array.isArray(content)) continue;
-                  for (const c of content) {
-                    if (!c || typeof c !== "object") continue;
-                    const o = c as { type?: unknown; text?: unknown };
-                    if (o.type === "output_text" && typeof o.text === "string") {
-                      out += o.text;
-                    }
-                  }
-                }
-              }
-            }
-          }
-        } catch {
-          /* ignore malformed SSE JSON */
-        }
-      }
     }
   }
   pending += dec.decode();
-  if (pending.trim().length > 0) {
-    for (const line of pending.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("data:")) continue;
-      const data = trimmed.slice(5).trim();
-      if (data === "[DONE]") continue;
-      try {
-        const j = JSON.parse(data) as Record<string, unknown>;
-        const typ = String(j.type ?? "");
-        if (typ === "response.output_text.delta" || typ.endsWith(".output_text.delta")) {
-          out += deltaTextFromEvent(j);
-        }
-      } catch {
-        /* ignore */
-      }
-    }
+  if (pending.trim().length > 0) acc.handleBlock(pending);
+  return acc.text();
+}
+
+/** Error for a non-OK Codex response; a model the account cannot use gets a `VIBEOPS_CODEX_MODEL` hint. */
+export function codexHttpError(status: number, errText: string, model: string): Error {
+  if (/model_not_found|model_not_in_accessible_catalog/i.test(errText)) {
+    return new Error(
+      `Codex responses HTTP ${status}: model "${model}" is not available to this account — set VIBEOPS_CODEX_MODEL to a model your account can use.`,
+    );
   }
-  return out.trim();
+  return new Error(httpErrorMessage("Codex responses", status, errText));
 }
 
 async function postCodexResponses(body: Record<string, unknown>): Promise<Response> {
@@ -204,10 +222,10 @@ export async function codexOAuthPlanCompletion(
       res = await postCodexResponses(minimal());
       if (!res.ok) {
         const err2 = await res.text().catch(() => "");
-        throw new Error(`Codex responses HTTP ${res.status}: ${err2.slice(0, 500)}`);
+        throw codexHttpError(res.status, err2, model);
       }
     } else {
-      throw new Error(`Codex responses HTTP ${res.status}: ${errText.slice(0, 500)}`);
+      throw codexHttpError(res.status, errText, model);
     }
   }
 
@@ -236,7 +254,7 @@ export async function codexOAuthTextCompletion(
   });
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
-    throw new Error(`Codex responses HTTP ${res.status}: ${errText.slice(0, 500)}`);
+    throw codexHttpError(res.status, errText, model);
   }
   const text = await readSseTextBody(res);
   if (text.length === 0) {

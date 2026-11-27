@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { readText } from "./filesystem.js";
 import { listWorkingTreeRelPaths, runGit } from "./git.js";
 import { bold, cyan, dim, green, log, yellow } from "./logger.js";
+import { llmUnavailableMessage } from "./llm-complete.js";
 import { fetchBaseBranch } from "./merge-base-freshness.js";
 import { projectPaths } from "./paths.js";
 import { prNumberFromUrl } from "./pr-create.js";
@@ -193,7 +194,11 @@ export async function runPostMergeNewCycle(
 
   if (!options.skipLlm && !dryRun) {
     log.step("LLM — follow-up Result / Test Result");
+    let llmCause: string | undefined;
     const patch = await llmCompleteTaskReship({
+      onError: (c) => {
+        llmCause = c;
+      },
       cwd,
       taskId,
       taskTitle: meta.title,
@@ -207,7 +212,7 @@ export async function runPostMergeNewCycle(
       for (const p of memory.updated) log.ok(`Updated ${p}`);
       for (const p of memory.skipped) log.skip(`Skipped ${p}`);
     } else {
-      log.warn("LLM unavailable — ensure Result / Test Result describe this follow-up.");
+      log.warn(llmUnavailableMessage(llmCause, "ensure Result / Test Result describe this follow-up."));
     }
     const body2 = await readText(taskFile);
     resultOk = hasNonEmptySection(body2, "Result");

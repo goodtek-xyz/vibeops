@@ -1,3 +1,5 @@
+import { httpErrorMessage } from "./llm-error.js";
+
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 export interface OpenAiChatMessage {
@@ -29,7 +31,7 @@ export async function openAiChatCompletionJson(params: {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`OpenAI HTTP ${res.status}: ${body.slice(0, 500)}`);
+    throw new Error(httpErrorMessage("OpenAI", res.status, body));
   }
   const data = (await res.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
@@ -64,7 +66,7 @@ export async function openAiChatCompletionText(params: {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`OpenAI HTTP ${res.status}: ${body.slice(0, 500)}`);
+    throw new Error(httpErrorMessage("OpenAI", res.status, body));
   }
   const data = (await res.json()) as {
     choices?: Array<{ message?: { content?: string } }>;

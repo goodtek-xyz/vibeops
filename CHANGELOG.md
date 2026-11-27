@@ -4,6 +4,13 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 3.6.1 - 2026-11-27
+
+### Fixed
+
+- **`codex-oauth`: `task add` / `task ship` always fell back to "LLM unavailable".** The Codex stream sends the reply as `response.output_text.delta` events and again in `response.completed`; both were appended, so a JSON reply came back doubled (`{"ok":true}{"ok":true}`) and failed to parse while `vibeops llm status` was fine. Non-empty deltas are now used when present and the completed output only when no delta arrived, also when the completed event is the last, unterminated part of the stream (TASK-072).
+- **"LLM unavailable" now says why.** `task add`, `task ship`, `ship --new-cycle`, PR text and commit message generation keep their fallbacks but print a one-line cause (tokens masked); with no provider connected the fallback stays silent. A Codex `model_not_found` / `model_not_in_accessible_catalog` error hints to set `VIBEOPS_CODEX_MODEL` to a model your account can use. Codex, Codex OAuth refresh and OpenAI HTTP errors no longer include the response body, only the status and a short extracted error code / message; causes mask Bearer tokens, `sk-` keys, JWTs, `Authorization` header values and token / API key / client secret / password values (TASK-072).
+
 ## 3.6.0 - 2026-11-22
 
 ### Changed

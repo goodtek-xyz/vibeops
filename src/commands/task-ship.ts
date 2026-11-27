@@ -12,6 +12,7 @@ import {
 } from "../lib/git.js";
 import { askYesNo, isInteractiveSession } from "../lib/inquirer-helpers.js";
 import { bold, cyan, dim, green, log, yellow } from "../lib/logger.js";
+import { llmUnavailableMessage } from "../lib/llm-complete.js";
 import { projectPaths } from "../lib/paths.js";
 import { prNumberFromUrl } from "../lib/pr-create.js";
 import { resolveShipTarget, taskNotFoundMessage } from "../lib/resolve-task.js";
@@ -171,7 +172,11 @@ async function runFirstShip(ctx: ShipContext): Promise<void> {
     if (dryRun) {
       log.info(dim("  would call LLM and patch docs/project/*"));
     } else {
+      let llmCause: string | undefined;
       const patch = await llmCompleteTaskShip({
+        onError: (c) => {
+          llmCause = c;
+        },
         cwd,
         taskId,
         taskTitle: meta.title,
@@ -185,7 +190,7 @@ async function runFirstShip(ctx: ShipContext): Promise<void> {
         for (const p of memory.updated) log.ok(`Updated ${p}`);
         for (const p of memory.skipped) log.skip(`Skipped ${p}`);
       } else {
-        log.warn("LLM unavailable — using git diff fallback for Result sections.");
+        log.warn(llmUnavailableMessage(llmCause, "using git diff fallback for Result sections."));
         const fb = await fallbackResultSections(cwd, taskId, taskFile);
         await writeTaskResultSections(taskFile, fb.result, fb.testResult);
       }

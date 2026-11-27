@@ -8,6 +8,7 @@ import {
   openAiChatCompletionJson,
   openAiChatCompletionText,
 } from "./plan-llm-openai.js";
+import { redactSecrets } from "./llm-error.js";
 import type { PlanLlmProviderId } from "./plan-llm-types.js";
 
 function formatMessagesForCursor(messages: readonly OpenAiChatMessage[]): string {
@@ -106,4 +107,20 @@ export { resolveAvailableLlmProvider } from "./llm-preference.js";
 /** True if any provider can run completions (ignores project preference). */
 export async function anyLlmProviderAvailable(cwd: string): Promise<boolean> {
   return (await resolveAvailableLlmProvider(cwd)) !== null;
+}
+
+/**
+ * One-line, secret-free cause for an LLM failure, shown in "LLM unavailable" warnings.
+ * Secrets are masked (`redactSecrets`); output is cut to one line.
+ */
+export function llmFailureCause(e: unknown): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  const line = raw.split("\n").map((l) => l.trim()).find((l) => l.length > 0) ?? "unknown error";
+  const masked = redactSecrets(line);
+  return masked.length > 200 ? `${masked.slice(0, 200)}…` : masked;
+}
+
+/** `LLM unavailable` warning text, with the cause in parentheses when known. */
+export function llmUnavailableMessage(cause: string | undefined, rest: string): string {
+  return cause ? `LLM unavailable (${cause}) — ${rest}` : `LLM unavailable — ${rest}`;
 }
