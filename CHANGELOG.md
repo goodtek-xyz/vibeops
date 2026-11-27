@@ -4,6 +4,8 @@ All notable changes to VibeOps are documented here.
 
 ## Unreleased
 
+## 3.6.1 - 2026-11-27
+
 ### Fixed
 
 - **`codex-oauth`: `task add` / `task ship` always fell back to "LLM unavailable".** The Codex stream sends the reply as `response.output_text.delta` events and again in `response.completed`; both were appended, so a JSON reply came back doubled (`{"ok":true}{"ok":true}`) and failed to parse while `vibeops llm status` was fine. Non-empty deltas are now used when present and the completed output only when no delta arrived, also when the completed event is the last, unterminated part of the stream (TASK-072).
