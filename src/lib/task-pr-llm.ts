@@ -1,4 +1,10 @@
-import { llmCompleteJson } from "./llm-complete.js";
+import {
+  anyLlmProviderAvailable,
+  llmCompleteJson,
+  llmFailureCause,
+  llmUnavailableMessage,
+} from "./llm-complete.js";
+import { log } from "./logger.js";
 import { taskScopedCommitMessage } from "./task-git-commit.js";
 import type { LlmProviderPreference } from "../types/config.js";
 import type { OpenAiChatMessage } from "./plan-llm-openai.js";
@@ -39,6 +45,9 @@ export async function generateTaskPrWithLlm(
   cwd: string,
   preference: LlmProviderPreference,
 ): Promise<TaskPrLlmResult | null> {
+  // No provider connected → silent fallback (same gate as the commit-message path).
+  if (!(await anyLlmProviderAvailable(cwd))) return null;
+
   const user = [
     `Task: ${input.taskId}`,
     `Title: ${input.title}`,
@@ -67,7 +76,8 @@ export async function generateTaskPrWithLlm(
       prTitle: normalizeTaskPrTitle(input.taskId, prTitle),
       prBody,
     };
-  } catch {
+  } catch (e) {
+    log.warn(llmUnavailableMessage(llmFailureCause(e), "using fallback PR title and body."));
     return null;
   }
 }

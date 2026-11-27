@@ -13,6 +13,7 @@ import {
   preflightBaseline,
 } from "../lib/project-baseline.js";
 import { bold, cyan, dim, log, yellow } from "../lib/logger.js";
+import { llmUnavailableMessage } from "../lib/llm-complete.js";
 import { projectPaths } from "../lib/paths.js";
 import { slugify } from "../lib/slug.js";
 import { fallbackTaskDraft, llmScaffoldTask } from "../lib/task-add-llm.js";
@@ -272,14 +273,22 @@ export async function taskAddCommand(opts: TaskAddCommandOptions = {}): Promise<
     slug = fb.slug;
     draftMarkdown = fb.markdown;
   } else {
-    const llm = await llmScaffoldTask({ cwd: root, taskId: provisionalId, idea });
+    let llmCause: string | undefined;
+    const llm = await llmScaffoldTask({
+      cwd: root,
+      taskId: provisionalId,
+      idea,
+      onError: (c) => {
+        llmCause = c;
+      },
+    });
     if (llm !== null) {
       title = llm.title;
       slug = llm.slug;
       draftMarkdown = llm.markdown;
       log.skip(`Scaffold via ${llm.provider}`);
     } else {
-      log.warn("LLM unavailable — using minimal TASK template.");
+      log.warn(llmUnavailableMessage(llmCause, "using minimal TASK template."));
       log.info(dim(`  Run ${cyan("vibeops llm connect")} to set up Codex, Cursor Agent CLI, or OpenAI.`));
       const fb = fallbackTaskDraft(provisionalId, idea);
       title = fb.title;

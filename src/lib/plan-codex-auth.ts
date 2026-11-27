@@ -11,6 +11,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
+import { httpErrorMessage } from "./llm-error.js";
+
 /** Public OAuth client id used by Codex CLI / Hermes / OpenClaw for ChatGPT login. */
 export const CODEX_OAUTH_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
 
@@ -157,7 +159,7 @@ export async function refreshCodexOAuthTokens(refreshToken: string): Promise<Cod
   });
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(`Codex OAuth refresh failed (${res.status}): ${text.slice(0, 400)}`);
+    throw new Error(httpErrorMessage("Codex OAuth refresh failed:", res.status, text));
   }
   let json: Record<string, unknown>;
   try {

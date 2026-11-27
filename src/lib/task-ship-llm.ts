@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import { readText, readTextOrNull, writeText } from "./filesystem.js";
 import { readConfig } from "./config.js";
-import { llmCompleteJson } from "./llm-complete.js";
+import { llmCompleteJson, llmFailureCause } from "./llm-complete.js";
 import { getLlmPreferenceFromConfig } from "./llm-preference.js";
 import { gitDiffNameOnly, readGitInfo } from "./git.js";
 import { projectPaths, PROJECT_MEMORY_FILES } from "./paths.js";
@@ -44,6 +44,8 @@ export async function llmCompleteTaskShip(params: {
   readonly taskTitle: string;
   readonly taskBody: string;
   readonly taskFileRel: string;
+  /** Receives a one-line cause when the call fails and null is returned. */
+  readonly onError?: (cause: string) => void;
 }): Promise<TaskShipLlmPatch | null> {
   const git = await readGitInfo(params.cwd);
   let diffSummary = "";
@@ -127,7 +129,8 @@ Be factual. Do not invent files not in the diff.`,
           : `${params.taskId} shipped.`,
       provider,
     };
-  } catch {
+  } catch (e) {
+    params.onError?.(llmFailureCause(e));
     return null;
   }
 }
@@ -138,6 +141,8 @@ export async function llmCompleteTaskReship(params: {
   readonly taskTitle: string;
   readonly taskBody: string;
   readonly taskFileRel: string;
+  /** Receives a one-line cause when the call fails and null is returned. */
+  readonly onError?: (cause: string) => void;
 }): Promise<TaskShipLlmPatch | null> {
   const git = await readGitInfo(params.cwd);
   let diffSummary = "";
@@ -223,7 +228,8 @@ Be factual. Do not invent files not in the diff.`,
           : `${params.taskId} reship follow-up.`,
       provider,
     };
-  } catch {
+  } catch (e) {
+    params.onError?.(llmFailureCause(e));
     return null;
   }
 }

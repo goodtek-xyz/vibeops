@@ -1,6 +1,11 @@
 import { readConfig } from "./config.js";
 import { gitDiffNameOnly, listWorkingTreeRelPaths } from "./git.js";
-import { anyLlmProviderAvailable, llmCompleteText } from "./llm-complete.js";
+import {
+  anyLlmProviderAvailable,
+  llmCompleteText,
+  llmFailureCause,
+  llmUnavailableMessage,
+} from "./llm-complete.js";
 import { getLlmPreferenceFromConfig } from "./llm-preference.js";
 import { askInput, isInteractiveSession } from "./inquirer-helpers.js";
 import { dim, log } from "./logger.js";
@@ -51,7 +56,8 @@ export async function generateCommitSubjectWithLlm(
       .find((l) => l.length > 0);
     if (line === undefined) return null;
     return line.replace(/^["'`]+|["'`]+$/g, "").trim() || null;
-  } catch {
+  } catch (e) {
+    log.warn(llmUnavailableMessage(llmFailureCause(e), "commit message not generated."));
     return null;
   }
 }

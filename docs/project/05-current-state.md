@@ -9,6 +9,7 @@
 - **3.5.0:** README no longer hardcodes a "current release" version (npm badge + CHANGELOG instead); release checklist notes README needs no bump (TASK-062).
 - **3.5.1:** GitLab `task merge` strict MR check accepts `detailed_merge_status` without the deprecated `merge_status` (one of the two required; both missing fails closed) (TASK-066).
 - **3.6.0:** `init` writes an AGENTS.md "Testing and host safety" rule (tests in CI/locally only, host-control behind a test-runner guard, no test markers in prod/staging); TASK template, `task add` stub and skills reference it (TASK-069).
+- **Unreleased:** `codex-oauth` reads streamed text once (deltas, or `response.completed` only when no delta came), so `task add` / `task ship` JSON replies parse again; "LLM unavailable" warnings name a one-line cause; Codex `model_not_found` hints `VIBEOPS_CODEX_MODEL` (TASK-072).
 - **CLI lifecycle:** `init` · `task add` · `task del` · **`task ship` (state-aware)** · `task merge` · `task sync` · `pull` · `task release` · **`status` (Now/Next)** · `llm`.
 - **Breaking (2.5.0):** `task reship` removed — use `task ship` / `--new-cycle`.
 - **2.5.1:** `task add` preflight + sync diagnosis + incomplete resume.

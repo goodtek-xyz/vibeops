@@ -2,7 +2,7 @@ import { join, relative } from "node:path";
 
 import { readTextOrNull } from "./filesystem.js";
 import { readConfig } from "./config.js";
-import { llmCompleteJson } from "./llm-complete.js";
+import { llmCompleteJson, llmFailureCause } from "./llm-complete.js";
 import { getLlmPreferenceFromConfig } from "./llm-preference.js";
 import { projectPaths } from "./paths.js";
 import { slugify } from "./slug.js";
@@ -67,6 +67,8 @@ export async function llmScaffoldTask(params: {
   readonly cwd: string;
   readonly taskId: string;
   readonly idea: string;
+  /** Receives a one-line cause when the call fails and null is returned. */
+  readonly onError?: (cause: string) => void;
 }): Promise<QuickTaskLlmResult | null> {
   try {
     const context = await loadProjectContextForLlm(params.cwd);
@@ -92,10 +94,14 @@ export async function llmScaffoldTask(params: {
       typeof parsed.slug === "string" ? slugify(parsed.slug, "task") : slugify(title, "task");
     const markdown =
       typeof parsed.markdown === "string" ? parsed.markdown.trim() : "";
-    if (title.length === 0 || markdown.length === 0) return null;
+    if (title.length === 0 || markdown.length === 0) {
+      params.onError?.("LLM reply had no title or markdown");
+      return null;
+    }
     const body = ensureV3Sections(normalizeTaskHeader(markdown, params.taskId, title));
     return { title, slug, markdown: body, provider };
-  } catch {
+  } catch (e) {
+    params.onError?.(llmFailureCause(e));
     return null;
   }
 }
